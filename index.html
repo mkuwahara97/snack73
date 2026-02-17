@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スナックセブンスリー 管理システム</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Bebas+Neue&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #ff0066;
+            --primary-dark: #cc0052;
+            --secondary: #00ccff;
+            --dark: #0a0a0a;
+            --dark-lighter: #1a1a1a;
+            --dark-card: #151515;
+            --text: #ffffff;
+            --text-dim: #888888;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --error: #ff3355;
+            --border: #333333;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0a1a 100%);
+            color: var(--text);
+            min-height: 100vh;
+            padding-bottom: 80px;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(255,0,102,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0,204,255,0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 480px;
+            margin: 0 auto;
+            background: rgba(10,10,10,0.8);
+            min-height: 100vh;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 0 100px rgba(255,0,102,0.2);
+        }
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(255,0,102,0.3);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 {
+            font-family: 'Bebas Neue', cursive;
+            font-size: 32px;
+            letter-spacing: 3px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        /* ローディングオーバーレイ */
+        #loadingOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            font-size: 16px;
+            color: var(--text-dim);
+            backdrop-filter: blur(8px);
+        }
+        #loadingOverlay.hidden { display: none; }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .nav-tabs {
+            display: flex;
+            background: var(--dark-card);
+            border-bottom: 2px solid var(--border);
+            position: sticky;
+            top: 72px;
+            z-index: 99;
+            overflow-x: auto;
+        }
+        .nav-tab {
+            flex: 1;
+            padding: 12px 8px;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            font-family: 'Noto Sans JP', sans-serif;
+            white-space: nowrap;
+            min-width: 60px;
+        }
+        .nav-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            background: rgba(255,0,102,0.05);
+        }
+        .content { padding: 20px; }
+        .section { display: none; animation: fadeIn 0.3s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .card {
+            background: var(--dark-card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+        .form-label .required {
+            color: var(--primary);
+            margin-left: 4px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            background: var(--dark-lighter);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 15px;
+            font-family: 'Noto Sans JP', sans-serif;
+            transition: all 0.3s ease;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255,0,102,0.1);
+        }
+        select.form-control { cursor: pointer; }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Noto Sans JP', sans-serif;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255,0,102,0.3);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255,0,102,0.4); }
+        .btn-secondary { background: var(--dark-lighter); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); }
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, #00cc66 100%);
+            color: var(--dark);
+            font-weight: 700;
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning) 0%, #cc8800 100%);
+            color: var(--dark);
+            font-weight: 700;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, var(--error) 0%, #cc0022 100%);
+            color: white;
+            font-weight: 700;
+        }
+        .btn-block { width: 100%; }
+        .drink-item {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: var(--dark-lighter);
+            border-radius: 8px;
+            border-left: 3px solid var(--secondary);
+        }
+        .drink-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .drink-item-label { font-size: 13px; color: var(--secondary); font-weight: 600; }
+        .drink-item-row { display: flex; gap: 10px; align-items: flex-end; }
+        .drink-item .form-group { margin: 0; flex: 1; }
+        .drink-item .btn { padding: 8px 12px; font-size: 13px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .stat-card {
+            background: var(--dark-lighter);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+        .stat-label { font-size: 12px; color: var(--text-dim); margin-bottom: 5px; }
+        .stat-value { font-size: 24px; font-weight: 700; color: var(--text); }
+        .stat-value.large { font-size: 32px; color: var(--primary); }
+        .list-item {
+            background: var(--dark-lighter);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .list-item:hover { transform: translateX(5px); box-shadow: 0 4px 15px rgba(0,204,255,0.2); }
+        .list-item.active-invoice { border-left-color: var(--warning); }
+        .list-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .list-item-title { font-weight: 700; font-size: 16px; }
+        .list-item-meta { font-size: 13px; color: var(--text-dim); }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-primary { background: rgba(255,0,102,0.2); color: var(--primary); }
+        .badge-success { background: rgba(0,255,136,0.2); color: var(--success); }
+        .badge-warning { background: rgba(255,170,0,0.2); color: var(--warning); }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+        .modal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+        .modal-content {
+            background: var(--dark-card);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 440px;
+            border: 1px solid var(--border);
+            animation: slideUp 0.3s ease;
+            margin-top: 20px;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: var(--dark-card);
+            border-radius: 12px 12px 0 0;
+            z-index: 10;
+        }
+        .modal-title { font-size: 20px; font-weight: 700; color: var(--primary); }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-body { padding: 20px; }
+        .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-bar select { flex: 1; min-width: 150px; }
+        .summary-section {
+            background: linear-gradient(135deg, rgba(255,0,102,0.1) 0%, rgba(0,204,255,0.1) 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--primary);
+        }
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+        .empty-state-icon { font-size: 48px; margin-bottom: 10px; opacity: 0.5; }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .total-display {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
+            box-shadow: 0 4px 20px rgba(255,0,102,0.3);
+        }
+        .total-label { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 5px; }
+        .total-amount { font-size: 36px; font-weight: 900; font-family: 'Bebas Neue', cursive; letter-spacing: 2px; }
+        input[type="number"] { -moz-appearance: textfield; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .invoice-action-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .cross-table-wrap { overflow-x: auto; margin-top: 10px; }
+        .cross-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            min-width: 320px;
+        }
+        .cross-table th, .cross-table td {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            text-align: right;
+            white-space: nowrap;
+        }
+        .cross-table th {
+            background: var(--dark-lighter);
+            color: var(--secondary);
+            font-weight: 600;
+            text-align: center;
+        }
+        .cross-table th:first-child { text-align: left; color: var(--primary); }
+        .cross-table td:first-child { text-align: left; font-weight: 600; }
+        .cross-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+        .cross-table .total-row td { color: var(--warning); font-weight: 700; background: rgba(255,170,0,0.05); }
+        .cross-table .zero { color: var(--border); }
+        .box-num-row { display: none; margin-top: 8px; }
+        .box-num-row.visible { display: block; }
+        .box-num-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .box-num-btn {
+            flex: 1;
+            min-width: 60px;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: var(--dark-lighter);
+            color: var(--text-dim);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-family: 'Bebas Neue', cursive;
+            letter-spacing: 1px;
+        }
+        .box-num-btn.selected {
+            border-color: var(--secondary);
+            background: rgba(0,204,255,0.15);
+            color: var(--secondary);
+        }
+        @media (max-width: 480px) { .stat-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<!-- ローディング -->
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div>データを読み込み中...</div>
+</div>
+
+<div class="app-container">
+    <div class="header">
+        <h1>SNACK73</h1>
+    </div>
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('invoice',this)">伝票</button>
+        <button class="nav-tab" onclick="switchTab('drinks',this)">ドリンク</button>
+        <button class="nav-tab" onclick="switchTab('salary',this)">給料</button>
+        <button class="nav-tab" onclick="switchTab('sales',this)">売上</button>
+        <button class="nav-tab" onclick="switchTab('customer',this)">顧客</button>
+    </div>
+
+    <!-- 伝票 -->
+    <div id="invoice" class="section active">
+        <div class="content">
+            <div class="card">
+                <div class="card-title">🧾 進行中の伝票</div>
+                <div id="activeInvoices"></div>
+                <button class="btn btn-success btn-block" onclick="createNewInvoice()">+ 新規伝票を作成</button>
+            </div>
+            <div class="card">
+                <div class="card-title">✅ 本日の確定伝票</div>
+                <div id="completedInvoices"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ドリンク設定 -->
+    <div id="drinks" class="section">
+        <div class="content">
+            <div class="card">
+                <div class="card-title">🍸 ドリンク登録</div>
+                <div class="form-group">
+                    <label class="form-label">ドリンク種類</label>
+                    <select id="drinkSettingType" class="form-control" onchange="toggleDrinkTypeFields()">
+                        <option value="カクテル">カクテル</option>
+                        <option value="ショット">ショット</option>
+                        <option value="シャンパン">シャンパン</option>
+                        <option value="ビール">ビール</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <div id="normalDrinkFields">
+                    <div class="form-group">
+                        <label class="form-label">ドリンク名</label>
+                        <input type="text" id="drinkSettingName" class="form-control" placeholder="例: モヒート">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">価格</label>
+                        <input type="number" id="drinkSettingPrice" class="form-control" placeholder="例: 1200" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">対象</label>
+                        <select id="drinkTarget" class="form-control">
+                            <option value="both">キャスト・お客様 両方</option>
+                            <option value="cast">キャストのみ</option>
+                            <option value="customer">お客様のみ</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="shotDrinkFields" style="display:none;">
+                    <div class="form-group">
+                        <label class="form-label">ショットの種類</label>
+                        <select id="shotType" class="form-control" onchange="toggleJagerPrice()">
+                            <option value="クライナー">クライナー (1本 ¥1,000 / 10本 ¥800)</option>
+                            <option value="イエガー">イエガー</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="jagerPriceField" style="display:none;">
+                        <label class="form-label">イエガー価格</label>
+                        <input type="number" id="jagerPrice" class="form-control" placeholder="例: 1200" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">対象</label>
+                        <select id="shotTarget" class="form-control">
+                            <option value="both">キャスト・お客様 両方</option>
+                            <option value="cast">キャストのみ</option>
+                            <option value="customer">お客様のみ</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-success btn-block" onclick="addDrinkSetting()">✨ ドリンクを追加</button>
+            </div>
+            <div class="card">
+                <div class="card-title">📋 登録済みドリンク一覧</div>
+                <div id="drinkSettingsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 給料計算 -->
+    <div id="salary" class="section">
+        <div class="content">
+            <div class="card">
+                <div class="card-title">💰 給料計算</div>
+                <div class="form-group">
+                    <label class="form-label">キャスト</label>
+                    <select id="salaryCast" class="form-control" onchange="loadCastSalaryData()">
+                        <option value="">キャストを選択</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">期間</label>
+                    <select id="salaryPeriod" class="form-control" onchange="loadCastSalaryData()">
+                        <option value="today">本日</option>
+                        <option value="month">今月</option>
+                    </select>
+                </div>
+                <div id="salaryDetails"></div>
+                <div id="workTimeInput" style="display:none;">
+                    <div style="border-top:1px solid var(--border);margin:20px 0;padding-top:20px;">
+                        <div class="form-label" style="color:var(--primary);margin-bottom:15px;">⏰ 勤務時間を追加</div>
+                        <div class="form-group">
+                            <label class="form-label">日付</label>
+                            <input type="date" id="quickWorkDate" class="form-control">
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">開始時刻</label>
+                                <input type="time" id="quickWorkStart" class="form-control" step="1800">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">終了時刻</label>
+                                <input type="time" id="quickWorkEnd" class="form-control" step="1800">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">同伴</label>
+                            <select id="quickWorkDohan" class="form-control">
+                                <option value="0">なし</option>
+                                <option value="1">あり</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-block" onclick="saveQuickWorkTime()">💾 勤務時間を登録</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">⚙️ キャスト設定</div>
+                <div class="form-group">
+                    <label class="form-label">キャスト名</label>
+                    <input type="text" id="newCastName" class="form-control" placeholder="例: 桜">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">誕生日（任意）</label>
+                    <input type="date" id="newCastBirthday" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">時給</label>
+                    <input type="number" id="newCastHourly" class="form-control" placeholder="例: 3000" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">ドリンクバック設定</label>
+                    <div class="grid-2">
+                        <div>
+                            <label class="form-label">カクテル</label>
+                            <input type="number" id="newCastCocktailBack" class="form-control" placeholder="例: 500" min="0">
+                        </div>
+                        <div>
+                            <label class="form-label">ショット</label>
+                            <input type="number" id="newCastShotBack" class="form-control" placeholder="例: 800" min="0">
+                        </div>
+                        <div style="grid-column: 1 / -1;">
+                            <label class="form-label">シャンパンバック率 (%)</label>
+                            <input type="number" id="newCastChampagneBackRate" class="form-control" placeholder="例: 20" min="0" max="100">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">同伴バック</label>
+                    <input type="number" id="newCastDohanBack" class="form-control" placeholder="例: 2000" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">送迎代</label>
+                    <input type="number" id="newCastTransport" class="form-control" placeholder="例: 1000" min="0">
+                </div>
+                <button class="btn btn-success btn-block" onclick="addCast()">✨ キャストを追加</button>
+            </div>
+            <div class="card">
+                <div class="card-title">👥 登録キャスト</div>
+                <div id="castList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 売上 -->
+    <div id="sales" class="section">
+        <div class="content">
+            <div class="card">
+                <div class="card-title">📊 売上集計</div>
+                <div class="filter-bar">
+                    <select id="salesPeriod" class="form-control" onchange="loadSalesData()">
+                        <option value="today">本日</option>
+                        <option value="month">今月</option>
+                    </select>
+                    <select id="salesType" class="form-control" onchange="loadSalesData()">
+                        <option value="total">店舗全体</option>
+                        <option value="customer">顧客別</option>
+                        <option value="cast">キャスト別</option>
+                        <option value="cross">顧客×キャスト</option>
+                    </select>
+                </div>
+                <div id="salesSummary"></div>
+                <div id="salesDetails"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 顧客管理 -->
+    <div id="customer" class="section">
+        <div class="content">
+            <div class="card">
+                <div class="card-title">👤 顧客登録</div>
+                <div class="form-group">
+                    <label class="form-label">顧客名<span class="required">*</span></label>
+                    <input type="text" id="newCustomerName" class="form-control" placeholder="例: 田中様">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">誕生日（任意）</label>
+                    <input type="date" id="newCustomerBirthday" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">メモ（任意）</label>
+                    <textarea id="newCustomerMemo" class="form-control" rows="3" placeholder="好みのドリンク、趣味など"></textarea>
+                </div>
+                <button class="btn btn-success btn-block" onclick="addCustomer()">✨ 顧客を追加</button>
+            </div>
+            <div class="card">
+                <div class="card-title">📇 顧客一覧</div>
+                <div id="customerList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 顧客詳細モーダル -->
+<div id="customerModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">顧客詳細</div>
+            <button class="modal-close" onclick="closeModal('customerModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="customerModalBody"></div>
+    </div>
+</div>
+
+<!-- 伝票編集モーダル -->
+<div id="invoiceModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title" id="invoiceModalTitle">伝票編集</div>
+            <button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">顧客名</label>
+                <select id="editInvoiceCustomer" class="form-control" onchange="calculateEditInvoice()">
+                    <option value="">顧客を選択</option>
+                </select>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">セット料金</label>
+                    <select id="editInvoiceSet" class="form-control" onchange="calculateEditInvoice()">
+                        <option value="3000-true">ボトル有り (¥3,000)</option>
+                        <option value="2500-false">ボトル無し (¥2,500)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">人数</label>
+                    <input type="number" id="editInvoicePeople" class="form-control" value="1" min="1" onchange="calculateEditInvoice()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">席</label>
+                <select id="editInvoiceSeat" class="form-control" onchange="handleSeatChange()">
+                    <option value="0">カウンター</option>
+                    <option value="1000">ボックス (+¥1,000)</option>
+                </select>
+            </div>
+            <div class="box-num-row" id="boxNumRow">
+                <label class="form-label">ボックス番号</label>
+                <div class="box-num-btns">
+                    <button class="box-num-btn" data-num="1" onclick="selectBoxNum(1)">BOX 1</button>
+                    <button class="box-num-btn" data-num="2" onclick="selectBoxNum(2)">BOX 2</button>
+                    <button class="box-num-btn" data-num="3" onclick="selectBoxNum(3)">BOX 3</button>
+                    <button class="box-num-btn" data-num="4" onclick="selectBoxNum(4)">BOX 4</button>
+                </div>
+            </div>
+            <div class="form-group" id="extensionGroup">
+                <label class="form-label">延長時間 (30分単位)</label>
+                <select id="editInvoiceExtension" class="form-control" onchange="calculateEditInvoice()">
+                    <option value="0">なし</option>
+                    <option value="1">30分</option>
+                    <option value="2">1時間</option>
+                    <option value="3">1時間30分</option>
+                    <option value="4">2時間</option>
+                    <option value="5">2時間30分</option>
+                    <option value="6">3時間</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">カラオケ曲数</label>
+                <input type="number" id="editInvoiceKaraoke" class="form-control" value="0" min="0" onchange="calculateEditInvoice()">
+            </div>
+            <div class="form-group">
+                <label class="form-label">ドリンク</label>
+                <div id="editInvoiceDrinks"></div>
+                <button class="btn btn-secondary btn-block" onclick="addEditInvoiceDrink()">+ ドリンク追加</button>
+            </div>
+            <div class="total-display">
+                <div class="total-label">合計金額</div>
+                <div class="total-amount" id="editInvoiceTotal">¥0</div>
+            </div>
+            <div class="invoice-action-btns">
+                <button class="btn btn-warning" onclick="saveEditInvoice()">💾 途中保存</button>
+                <button class="btn btn-success" onclick="completeInvoice()">✅ 確定</button>
+            </div>
+            <button class="btn btn-danger btn-block" onclick="deleteInvoice()">🗑️ 伝票を削除</button>
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDK (CDN) -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+    getFirestore,
+    doc,
+    getDoc,
+    setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ── Firebase 初期化 ─────────────────────────────────
+const firebaseConfig = {
+    apiKey: "AIzaSyAMLRv57b_On4fVhkQKl1fJJOy-WN520wU",
+    authDomain: "snack73-a01ee.firebaseapp.com",
+    projectId: "snack73-a01ee",
+    storageBucket: "snack73-a01ee.firebasestorage.app",
+    messagingSenderId: "774954469373",
+    appId: "1:774954469373:web:877686a194028cdb707b94"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+
+const DOC_REF = doc(db, "snack73", "main");
+
+// ── データ読み書き（Firestoreに完全置き換え）─────────
+window._loadData = async function() {
+    try {
+        const snap = await getDoc(DOC_REF);
+        if (snap.exists()) {
+            const saved = snap.data().payload ? JSON.parse(snap.data().payload) : {};
+            appData = { activeInvoices: [], ...saved };
+        }
+    } catch(e) {
+        console.error('Firestore読み込みエラー:', e);
+        alert('データの読み込みに失敗しました。\nネットワーク接続を確認してください。');
+    }
+};
+
+window._saveData = async function() {
+    try {
+        await setDoc(DOC_REF, { payload: JSON.stringify(appData), updatedAt: new Date().toISOString() });
+    } catch(e) {
+        console.error('Firestore保存エラー:', e);
+        alert('データの保存に失敗しました。\nネットワーク接続を確認してください。');
+        throw e;
+    }
+};
+
+// ── アプリ起動 ──────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => { init(); });
+</script>
+
+<script>
+// ── アプリデータ ────────────────────────────────────
+let appData = {
+    casts: [],
+    customers: [],
+    invoices: [],
+    activeInvoices: [],
+    workTimes: [],
+    drinkSettings: []
+};
+let currentEditingInvoiceId = null;
+let currentBoxNum = null;
+
+// ── 初期化 ──────────────────────────────────────────
+async function init() {
+    showLoading(true);
+    await window._loadData();
+    renderAll();
+    document.getElementById('workDate') && (document.getElementById('workDate').value = new Date().toISOString().split('T')[0]);
+    showLoading(false);
+}
+
+function showLoading(show) {
+    document.getElementById('loadingOverlay').classList.toggle('hidden', !show);
+}
+
+async function loadData() { await window._loadData(); }
+async function saveData() { await window._saveData(); }
+
+// ── タブ切り替え ────────────────────────────────────
+function switchTab(tabName, btn) {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+    if (tabName === 'invoice') { renderActiveInvoices(); renderCompletedInvoices(); }
+    if (tabName === 'drinks') renderDrinkSettings();
+    if (tabName === 'salary') renderSalarySection();
+    if (tabName === 'sales') loadSalesData();
+    if (tabName === 'customer') renderCustomerList();
+}
+
+// ── ドリンク設定 ────────────────────────────────────
+function toggleDrinkTypeFields() {
+    const type = document.getElementById('drinkSettingType').value;
+    document.getElementById('normalDrinkFields').style.display = type === 'ショット' ? 'none' : 'block';
+    document.getElementById('shotDrinkFields').style.display = type === 'ショット' ? 'block' : 'none';
+}
+function toggleJagerPrice() {
+    const v = document.getElementById('shotType').value;
+    document.getElementById('jagerPriceField').style.display = v === 'イエガー' ? 'block' : 'none';
+}
+async function addDrinkSetting() {
+    const type = document.getElementById('drinkSettingType').value;
+    let name, price, isShot = false, shotType = null, target;
+    if (type === 'ショット') {
+        shotType = document.getElementById('shotType').value;
+        name = shotType; isShot = true;
+        target = document.getElementById('shotTarget').value;
+        price = shotType === 'クライナー' ? 1000 : (parseInt(document.getElementById('jagerPrice').value) || 0);
+        if (shotType === 'イエガー' && !price) { alert('イエガーの価格を入力してください'); return; }
+    } else {
+        name = document.getElementById('drinkSettingName').value.trim();
+        price = parseInt(document.getElementById('drinkSettingPrice').value) || 0;
+        target = document.getElementById('drinkTarget').value;
+        if (!name || !price) { alert('ドリンク名と価格を入力してください'); return; }
+    }
+    showLoading(true);
+    appData.drinkSettings.push({ id: Date.now().toString(), type, name, price, isShot, shotType, target });
+    await saveData();
+    showLoading(false);
+    document.getElementById('drinkSettingName').value = '';
+    document.getElementById('drinkSettingPrice').value = '';
+    document.getElementById('jagerPrice').value = '';
+    renderDrinkSettings();
+    alert('ドリンクを追加しました！');
+}
+async function deleteDrinkSetting(id) {
+    if (!confirm('このドリンクを削除してもよろしいですか？')) return;
+    showLoading(true);
+    appData.drinkSettings = appData.drinkSettings.filter(d => d.id !== id);
+    await saveData();
+    showLoading(false);
+    renderDrinkSettings();
+}
+function renderDrinkSettings() {
+    const c = document.getElementById('drinkSettingsList');
+    if (!appData.drinkSettings.length) {
+        c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🍸</div><div>ドリンクが登録されていません</div></div>'; return;
+    }
+    const groups = ['カクテル','ショット','シャンパン','ビール','その他'];
+    let html = '';
+    groups.forEach(g => {
+        const drinks = appData.drinkSettings.filter(d => d.type === g);
+        if (!drinks.length) return;
+        html += `<div style="margin-bottom:15px;"><div class="form-label" style="color:var(--secondary);">${g}</div>`;
+        drinks.forEach(d => {
+            const priceText = d.shotType === 'クライナー' ? '¥1,000 (10本で¥800/本)' : `¥${d.price.toLocaleString()}`;
+            const tBadge = d.target === 'cast' ? '<span class="badge badge-primary" style="margin-left:6px;">キャスト</span>'
+                         : d.target === 'customer' ? '<span class="badge badge-success" style="margin-left:6px;">お客様</span>' : '';
+            html += `<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">
+                <div><div class="list-item-title">${d.name}${tBadge}</div><div class="list-item-meta">${priceText}</div></div>
+                <button class="btn btn-secondary" onclick="deleteDrinkSetting('${d.id}');event.stopPropagation();" style="padding:6px 12px;">削除</button>
+            </div>`;
+        });
+        html += '</div>';
+    });
+    c.innerHTML = html;
+}
+
+// ── キャスト ────────────────────────────────────────
+async function addCast() {
+    const name = document.getElementById('newCastName').value.trim();
+    if (!name) { alert('キャスト名を入力してください'); return; }
+    showLoading(true);
+    appData.casts.push({
+        id: Date.now().toString(),
+        name,
+        birthday: document.getElementById('newCastBirthday').value,
+        hourly: parseInt(document.getElementById('newCastHourly').value) || 0,
+        drinkBacks: {
+            'カクテル': parseInt(document.getElementById('newCastCocktailBack').value) || 0,
+            'ショット': parseInt(document.getElementById('newCastShotBack').value) || 0
+        },
+        champagneBackRate: parseInt(document.getElementById('newCastChampagneBackRate').value) || 0,
+        dohanBack: parseInt(document.getElementById('newCastDohanBack').value) || 0,
+        transport: parseInt(document.getElementById('newCastTransport').value) || 0
+    });
+    await saveData();
+    showLoading(false);
+    ['newCastName','newCastBirthday','newCastHourly','newCastCocktailBack','newCastShotBack','newCastChampagneBackRate','newCastDohanBack','newCastTransport']
+        .forEach(id => document.getElementById(id).value = '');
+    renderAll();
+    alert('キャストを追加しました！');
+}
+function renderCastList() {
+    const c = document.getElementById('castList');
+    if (!appData.casts.length) {
+        c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><div>キャストが登録されていません</div></div>'; return;
+    }
+    c.innerHTML = appData.casts.map(cast => {
+        const bdayTxt = cast.birthday ? `誕生日: ${cast.birthday}　` : '';
+        return `<div class="list-item">
+            <div class="list-item-header">
+                <div class="list-item-title">${cast.name}</div>
+                <span class="badge badge-primary">時給 ¥${cast.hourly.toLocaleString()}</span>
+            </div>
+            <div class="list-item-meta">${bdayTxt}カクテル: ¥${cast.drinkBacks['カクテル']} / ショット: ¥${cast.drinkBacks['ショット']} / シャンパン: ${cast.champagneBackRate}%</div>
+        </div>`;
+    }).join('');
+}
+
+// ── 顧客 ────────────────────────────────────────────
+async function addCustomer() {
+    const name = document.getElementById('newCustomerName').value.trim();
+    if (!name) { alert('顧客名を入力してください'); return; }
+    showLoading(true);
+    appData.customers.push({
+        id: Date.now().toString(),
+        name,
+        birthday: document.getElementById('newCustomerBirthday').value,
+        memo: document.getElementById('newCustomerMemo').value.trim(),
+        createdAt: new Date().toISOString()
+    });
+    await saveData();
+    showLoading(false);
+    ['newCustomerName','newCustomerBirthday','newCustomerMemo'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    renderAll();
+    alert('顧客を追加しました！');
+}
+function renderCustomerList() {
+    const c = document.getElementById('customerList');
+    if (!appData.customers.length) {
+        c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div>顧客が登録されていません</div></div>'; return;
+    }
+    c.innerHTML = appData.customers.map(cu => {
+        const cnt = appData.invoices.filter(i => i.customerId === cu.id).length;
+        return `<div class="list-item" onclick="showCustomerDetail('${cu.id}')">
+            <div class="list-item-header">
+                <div class="list-item-title">${cu.name}</div>
+                <span class="badge badge-success">${cnt}回来店</span>
+            </div>
+            <div class="list-item-meta">${cu.birthday ? '誕生日: ' + cu.birthday : '誕生日未登録'}</div>
+        </div>`;
+    }).join('');
+}
+
+// ── 伝票 ────────────────────────────────────────────
+async function createNewInvoice() {
+    const inv = {
+        id: Date.now().toString(),
+        customerId: '',
+        people: 1,
+        hasBottle: true,
+        setPrice: 3000,
+        seatPrice: 0,
+        boxNum: null,
+        extension: 0,
+        karaoke: 0,
+        drinks: [],
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        total: 0
+    };
+    showLoading(true);
+    appData.activeInvoices.push(inv);
+    await saveData();
+    showLoading(false);
+    renderActiveInvoices();
+    editInvoice(inv.id);
+}
+
+function editInvoice(invoiceId) {
+    currentEditingInvoiceId = invoiceId;
+    const inv = appData.activeInvoices.find(i => i.id === invoiceId);
+    if (!inv) return;
+    openInvoiceModal(inv, false);
+}
+function editCompletedInvoice(invoiceId) {
+    currentEditingInvoiceId = invoiceId;
+    const inv = appData.invoices.find(i => i.id === invoiceId);
+    if (!inv) return;
+    openInvoiceModal(inv, true);
+}
+function openInvoiceModal(inv, isCompleted) {
+    document.getElementById('invoiceModalTitle').textContent = isCompleted ? '伝票編集（確定済）' : '伝票編集';
+    renderCustomerSelects();
+    document.getElementById('editInvoiceCustomer').value = inv.customerId || '';
+    document.getElementById('editInvoiceSet').value = `${inv.setPrice}-${inv.hasBottle}`;
+    document.getElementById('editInvoicePeople').value = inv.people || 1;
+    document.getElementById('editInvoiceSeat').value = inv.seatPrice || 0;
+    document.getElementById('editInvoiceExtension').value = inv.extension || 0;
+    document.getElementById('editInvoiceKaraoke').value = inv.karaoke || 0;
+    currentBoxNum = inv.boxNum || null;
+    handleSeatChange();
+    const dc = document.getElementById('editInvoiceDrinks');
+    dc.innerHTML = '';
+    (inv.drinks || []).forEach(d => addEditInvoiceDrink(d));
+    calculateEditInvoice();
+    openModal('invoiceModal');
+}
+
+function handleSeatChange() {
+    const seatVal = document.getElementById('editInvoiceSeat').value;
+    const boxRow = document.getElementById('boxNumRow');
+    if (seatVal === '1000') {
+        boxRow.classList.add('visible');
+        document.querySelectorAll('.box-num-btn').forEach(btn => {
+            btn.classList.toggle('selected', parseInt(btn.dataset.num) === currentBoxNum);
+        });
+    } else {
+        boxRow.classList.remove('visible');
+        currentBoxNum = null;
+    }
+    calculateEditInvoice();
+}
+
+function selectBoxNum(num) {
+    currentBoxNum = (currentBoxNum === num) ? null : num;
+    document.querySelectorAll('.box-num-btn').forEach(btn => {
+        btn.classList.toggle('selected', parseInt(btn.dataset.num) === currentBoxNum);
+    });
+}
+
+function addEditInvoiceDrink(existingDrink = null) {
+    const container = document.getElementById('editInvoiceDrinks');
+    const drinkNum = container.children.length + 1;
+    const item = document.createElement('div');
+    item.className = 'drink-item';
+    item.innerHTML = `
+        <div class="drink-item-header">
+            <div class="drink-item-label">ドリンク ${drinkNum}</div>
+            <button class="btn btn-secondary" onclick="this.closest('.drink-item').remove();calculateEditInvoice();event.stopPropagation();">×</button>
+        </div>
+        <div class="drink-item-row">
+            <div class="form-group" style="flex:2;">
+                <label class="form-label">誰が飲む</label>
+                <select class="form-control drink-person-type" onchange="updatePersonOptions(this);updateDrinkOptions(this);updateDrinkLabel(this);calculateEditInvoice()">
+                    <option value="">選択</option>
+                    <option value="cast" ${existingDrink&&existingDrink.castId?'selected':''}>キャスト</option>
+                    <option value="customer" ${existingDrink&&existingDrink.customerId?'selected':''}>お客様</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:2;">
+                <label class="form-label">名前</label>
+                <select class="form-control drink-person" onchange="updateDrinkLabel(this);calculateEditInvoice()">
+                    <option value="">選択</option>
+                </select>
+            </div>
+        </div>
+        <div class="drink-item-row">
+            <div class="form-group" style="flex:3;">
+                <label class="form-label">種類</label>
+                <select class="form-control drink-type" onchange="updateDrinkLabel(this);calculateEditInvoice()">
+                    <option value="">選択</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label class="form-label">杯数</label>
+                <input type="number" class="form-control drink-count" value="${existingDrink?existingDrink.count:1}" min="1" onchange="updateDrinkLabel(this);calculateEditInvoice()">
+            </div>
+        </div>
+    `;
+    container.appendChild(item);
+    if (existingDrink) {
+        const pts = item.querySelector('.drink-person-type');
+        updatePersonOptions(pts);
+        const ps = item.querySelector('.drink-person');
+        ps.value = existingDrink.castId || existingDrink.customerId || '';
+        updateDrinkOptions(pts);
+        const ds = item.querySelector('.drink-type');
+        ds.value = existingDrink.drinkId || '';
+    }
+    calculateEditInvoice();
+}
+
+function updateDrinkOptions(personTypeSelect) {
+    const item = personTypeSelect.closest('.drink-item');
+    const drinkSelect = item.querySelector('.drink-type');
+    const personType = personTypeSelect.value;
+    drinkSelect.innerHTML = '<option value="">選択</option>';
+    if (!personType) return;
+    const groups = ['カクテル','ショット','シャンパン','ビール','その他'];
+    groups.forEach(g => {
+        const drinks = appData.drinkSettings.filter(d => d.type === g && (d.target === 'both' || d.target === personType));
+        if (!drinks.length) return;
+        const og = document.createElement('optgroup');
+        og.label = g;
+        drinks.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = `${d.name} ${d.shotType==='クライナー'?'¥1,000(10本¥800/本)':`¥${d.price.toLocaleString()}`}`;
+            og.appendChild(opt);
+        });
+        drinkSelect.appendChild(og);
+    });
+}
+
+function updatePersonOptions(personTypeSelect) {
+    const item = personTypeSelect.closest('.drink-item');
+    const ps = item.querySelector('.drink-person');
+    const pType = personTypeSelect.value;
+    ps.innerHTML = '<option value="">選択</option>';
+    if (pType === 'cast') {
+        appData.casts.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; ps.appendChild(o); });
+    } else if (pType === 'customer') {
+        appData.customers.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; ps.appendChild(o); });
+    }
+}
+
+function updateDrinkLabel(el) {
+    const item = el.closest('.drink-item');
+    const pts = item.querySelector('.drink-person-type');
+    const ps = item.querySelector('.drink-person');
+    const ds = item.querySelector('.drink-type');
+    const cnt = item.querySelector('.drink-count');
+    const lbl = item.querySelector('.drink-item-label');
+    const pId = ps.value, dId = ds.value;
+    if (pId && dId) {
+        let pName = '';
+        if (pts.value === 'cast') { const c = appData.casts.find(x=>x.id===pId); pName = c?.name||''; }
+        else { const c = appData.customers.find(x=>x.id===pId); pName = c?.name||''; }
+        const d = appData.drinkSettings.find(x=>x.id===dId);
+        lbl.textContent = `${pName} - ${d?.name||''} × ${cnt.value}${d?.shotType==='クライナー'?'本':'杯'}`;
+    } else {
+        const n = Array.from(item.parentElement.children).indexOf(item) + 1;
+        lbl.textContent = `ドリンク ${n}`;
+    }
+}
+
+function roundUpTo50(n) { return Math.ceil(n / 50) * 50; }
+
+function calculateEditInvoice() {
+    const setData = document.getElementById('editInvoiceSet').value.split('-');
+    const setPrice = parseInt(setData[0]) || 0;
+    const hasBottle = setData[1] === 'true';
+    const people = parseInt(document.getElementById('editInvoicePeople').value) || 1;
+    const seatPrice = parseInt(document.getElementById('editInvoiceSeat').value) || 0;
+    const ext = parseInt(document.getElementById('editInvoiceExtension').value) || 0;
+    const totalSet = setPrice * people + seatPrice;
+    let extPrice = 0;
+    if (!hasBottle && ext > 0) extPrice = roundUpTo50((totalSet / 2) * ext);
+    const karaoke = parseInt(document.getElementById('editInvoiceKaraoke').value) || 0;
+    const karaokePrice = karaoke * 200;
+
+    const kleinerByPerson = {}, processed = {};
+    document.querySelectorAll('#editInvoiceDrinks .drink-item').forEach(item => {
+        const dId = item.querySelector('.drink-type').value;
+        const cnt = parseInt(item.querySelector('.drink-count').value) || 0;
+        const pType = item.querySelector('.drink-person-type').value;
+        const pId = item.querySelector('.drink-person').value;
+        if (!dId || !pId) return;
+        const d = appData.drinkSettings.find(x => x.id === dId);
+        if (d && d.shotType === 'クライナー') {
+            const key = `${pType}-${pId}`;
+            kleinerByPerson[key] = (kleinerByPerson[key] || 0) + cnt;
+        }
+    });
+
+    let drinksTotal = 0;
+    document.querySelectorAll('#editInvoiceDrinks .drink-item').forEach(item => {
+        const dId = item.querySelector('.drink-type').value;
+        const cnt = parseInt(item.querySelector('.drink-count').value) || 0;
+        const pType = item.querySelector('.drink-person-type').value;
+        const pId = item.querySelector('.drink-person').value;
+        if (!dId || !pId) return;
+        const d = appData.drinkSettings.find(x => x.id === dId);
+        if (!d) return;
+        if (d.shotType === 'クライナー') {
+            const key = `${pType}-${pId}`;
+            if (!processed[key]) {
+                const tot = kleinerByPerson[key];
+                drinksTotal += Math.floor(tot / 10) * 10 * 800 + (tot % 10) * 1000;
+                processed[key] = true;
+            }
+        } else {
+            drinksTotal += d.price * cnt;
+        }
+    });
+
+    const total = roundUpTo50(totalSet + extPrice + karaokePrice + drinksTotal);
+    document.getElementById('editInvoiceTotal').textContent = `¥${total.toLocaleString()}`;
+    document.getElementById('extensionGroup').style.display = hasBottle ? 'none' : 'block';
+    if (hasBottle) document.getElementById('editInvoiceExtension').value = '0';
+}
+
+async function saveEditInvoice() {
+    const invoiceId = currentEditingInvoiceId;
+    let inv = appData.activeInvoices.find(i => i.id === invoiceId);
+    let isCompleted = false;
+    if (!inv) { inv = appData.invoices.find(i => i.id === invoiceId); isCompleted = true; }
+    if (!inv) return;
+
+    const setData = document.getElementById('editInvoiceSet').value.split('-');
+    inv.setPrice = parseInt(setData[0]);
+    inv.hasBottle = setData[1] === 'true';
+    inv.people = parseInt(document.getElementById('editInvoicePeople').value) || 1;
+    inv.customerId = document.getElementById('editInvoiceCustomer').value;
+    inv.seatPrice = parseInt(document.getElementById('editInvoiceSeat').value);
+    inv.boxNum = currentBoxNum;
+    inv.extension = parseInt(document.getElementById('editInvoiceExtension').value);
+    inv.karaoke = parseInt(document.getElementById('editInvoiceKaraoke').value);
+    inv.drinks = collectDrinks();
+    inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
+
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('invoiceModal');
+    if (isCompleted) renderCompletedInvoices();
+    else renderActiveInvoices();
+    alert('保存しました！');
+}
+
+async function completeInvoice() {
+    const invoiceId = currentEditingInvoiceId;
+    const idx = appData.activeInvoices.findIndex(i => i.id === invoiceId);
+    if (idx === -1) { alert('この伝票は既に確定済みです'); return; }
+    if (!document.getElementById('editInvoiceCustomer').value) { alert('顧客を選択してください'); return; }
+
+    const inv = appData.activeInvoices[idx];
+    const setData = document.getElementById('editInvoiceSet').value.split('-');
+    inv.setPrice = parseInt(setData[0]);
+    inv.hasBottle = setData[1] === 'true';
+    inv.people = parseInt(document.getElementById('editInvoicePeople').value) || 1;
+    inv.customerId = document.getElementById('editInvoiceCustomer').value;
+    inv.seatPrice = parseInt(document.getElementById('editInvoiceSeat').value);
+    inv.boxNum = currentBoxNum;
+    inv.extension = parseInt(document.getElementById('editInvoiceExtension').value);
+    inv.karaoke = parseInt(document.getElementById('editInvoiceKaraoke').value);
+    inv.drinks = collectDrinks();
+    inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
+    inv.status = 'completed';
+    inv.completedAt = new Date().toISOString();
+
+    appData.activeInvoices.splice(idx, 1);
+    appData.invoices.push(inv);
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('invoiceModal');
+    renderActiveInvoices();
+    renderCompletedInvoices();
+    alert('伝票を確定しました！');
+}
+
+function collectDrinks() {
+    const drinks = [];
+    document.querySelectorAll('#editInvoiceDrinks .drink-item').forEach(item => {
+        const pType = item.querySelector('.drink-person-type').value;
+        const pId = item.querySelector('.drink-person').value;
+        const dId = item.querySelector('.drink-type').value;
+        const cnt = parseInt(item.querySelector('.drink-count').value);
+        if (!pId || !dId) return;
+        const d = appData.drinkSettings.find(x => x.id === dId);
+        if (!d) return;
+        const rec = { drinkId: d.id, name: d.name, type: d.type, price: d.price, count: cnt };
+        if (d.shotType) rec.shotType = d.shotType;
+        if (pType === 'cast') rec.castId = pId;
+        else rec.customerId = pId;
+        drinks.push(rec);
+    });
+    return drinks;
+}
+
+async function deleteInvoice() {
+    if (!confirm('この伝票を削除してもよろしいですか？')) return;
+    const id = currentEditingInvoiceId;
+    const ai = appData.activeInvoices.findIndex(i => i.id === id);
+    if (ai !== -1) {
+        appData.activeInvoices.splice(ai, 1);
+        showLoading(true); await saveData(); showLoading(false);
+        closeModal('invoiceModal'); renderActiveInvoices(); alert('削除しました'); return;
+    }
+    const ci = appData.invoices.findIndex(i => i.id === id);
+    if (ci !== -1) {
+        appData.invoices.splice(ci, 1);
+        showLoading(true); await saveData(); showLoading(false);
+        closeModal('invoiceModal'); renderCompletedInvoices(); alert('削除しました');
+    }
+}
+
+function renderActiveInvoices() {
+    const c = document.getElementById('activeInvoices');
+    if (!appData.activeInvoices.length) {
+        c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🧾</div><div>進行中の伝票はありません</div></div>'; return;
+    }
+    c.innerHTML = appData.activeInvoices.map(inv => {
+        const cu = appData.customers.find(c => c.id === inv.customerId);
+        const time = new Date(inv.createdAt).toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit'});
+        const dc = inv.drinks.reduce((s,d)=>s+d.count,0);
+        const seatLabel = inv.seatPrice > 0 ? ` / BOX${inv.boxNum ? ' #'+inv.boxNum : ''}` : ' / カウンター';
+        return `<div class="list-item active-invoice" onclick="editInvoice('${inv.id}')">
+            <div class="list-item-header">
+                <div class="list-item-title">${cu?.name||'未設定'} <span class="badge badge-warning" style="font-size:11px;">進行中</span></div>
+                <span class="badge badge-primary">¥${(inv.total||0).toLocaleString()}</span>
+            </div>
+            <div class="list-item-meta">${time} 開始 / ${inv.people||1}名${seatLabel} / ドリンク${dc}杯</div>
+        </div>`;
+    }).join('');
+}
+
+function renderCompletedInvoices() {
+    const c = document.getElementById('completedInvoices');
+    const today = new Date().toISOString().split('T')[0];
+    const list = appData.invoices.filter(i => i.completedAt && i.completedAt.split('T')[0] === today);
+    if (!list.length) {
+        c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div>本日の確定伝票はまだありません</div></div>'; return;
+    }
+    c.innerHTML = list.map(inv => {
+        const cu = appData.customers.find(c => c.id === inv.customerId);
+        const time = new Date(inv.completedAt).toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit'});
+        const seatLabel = inv.seatPrice > 0 ? ` / BOX${inv.boxNum ? ' #'+inv.boxNum : ''}` : ' / カウンター';
+        return `<div class="list-item" onclick="editCompletedInvoice('${inv.id}')">
+            <div class="list-item-header">
+                <div class="list-item-title">${cu?.name||'不明'}</div>
+                <span class="badge badge-success">¥${inv.total.toLocaleString()}</span>
+            </div>
+            <div class="list-item-meta">${time} / ${inv.people||1}名${seatLabel} / ドリンク${inv.drinks.reduce((s,d)=>s+d.count,0)}杯</div>
+        </div>`;
+    }).join('');
+}
+
+// ── 給料計算 ────────────────────────────────────────
+function renderSalarySection() { renderCastSelects(); }
+
+async function saveQuickWorkTime() {
+    const castId = document.getElementById('salaryCast').value;
+    const date = document.getElementById('quickWorkDate').value;
+    const start = document.getElementById('quickWorkStart').value;
+    const end = document.getElementById('quickWorkEnd').value;
+    const dohan = parseInt(document.getElementById('quickWorkDohan').value);
+    if (!castId || !date || !start || !end) { alert('全ての項目を入力してください'); return; }
+    let st = new Date(`${date}T${start}`), et = new Date(`${date}T${end}`);
+    if (et <= st) et.setDate(et.getDate() + 1);
+    const hrs = Math.round((et - st) / (1000*60*60) * 2) / 2;
+    showLoading(true);
+    appData.workTimes.push({ id: Date.now().toString(), castId, date, start, end, hours: hrs, dohan });
+    await saveData();
+    showLoading(false);
+    document.getElementById('quickWorkStart').value = '';
+    document.getElementById('quickWorkEnd').value = '';
+    document.getElementById('quickWorkDohan').value = '0';
+    loadCastSalaryData();
+    alert('勤務時間を登録しました！');
+}
+
+function loadCastSalaryData() {
+    const castId = document.getElementById('salaryCast').value;
+    const period = document.getElementById('salaryPeriod').value;
+    const c = document.getElementById('salaryDetails');
+    const wti = document.getElementById('workTimeInput');
+    if (!castId) { c.innerHTML = ''; wti.style.display = 'none'; return; }
+    wti.style.display = 'block';
+    document.getElementById('quickWorkDate').value = new Date().toISOString().split('T')[0];
+    const cast = appData.casts.find(x => x.id === castId);
+    if (!cast) return;
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const filterDate = period === 'today'
+        ? d => d.split('T')[0] === today
+        : d => { const dt = new Date(d); return dt.getFullYear()===now.getFullYear()&&dt.getMonth()===now.getMonth(); };
+
+    const wts = appData.workTimes.filter(w => w.castId === castId && filterDate(w.date));
+    const totalHours = wts.reduce((s,w) => s+w.hours, 0);
+    const dohanCnt = wts.filter(w => w.dohan===1).length;
+    const hourlyPay = totalHours * cast.hourly;
+    const dohanPay = dohanCnt * cast.dohanBack;
+    const transportPay = wts.length * cast.transport;
+
+    const invs = appData.invoices.filter(i => filterDate(i.completedAt || i.createdAt));
+    let drinkBacks = {}, drinkBackTotal = 0;
+    invs.forEach(inv => inv.drinks.forEach(d => {
+        if (d.castId !== castId) return;
+        if (!drinkBacks[d.type]) drinkBacks[d.type] = { count:0, amount:0 };
+        drinkBacks[d.type].count += d.count;
+        let back = d.type === 'シャンパン'
+            ? d.price * d.count * (cast.champagneBackRate / 100)
+            : d.count * (cast.drinkBacks[d.type] || 0);
+        drinkBacks[d.type].amount += back;
+        drinkBackTotal += back;
+    }));
+
+    const total = hourlyPay + drinkBackTotal + dohanPay + transportPay;
+    c.innerHTML = `
+        <div class="summary-section">
+            <div class="stat-grid">
+                <div class="stat-card"><div class="stat-label">勤務時間</div><div class="stat-value">${totalHours}h</div></div>
+                <div class="stat-card"><div class="stat-label">時給分</div><div class="stat-value">¥${hourlyPay.toLocaleString()}</div></div>
+                <div class="stat-card"><div class="stat-label">ドリンクバック</div><div class="stat-value">¥${drinkBackTotal.toLocaleString()}</div></div>
+                <div class="stat-card"><div class="stat-label">同伴バック</div><div class="stat-value">¥${dohanPay.toLocaleString()}</div></div>
+                <div class="stat-card"><div class="stat-label">送迎代</div><div class="stat-value">¥${transportPay.toLocaleString()}</div></div>
+            </div>
+            <div class="total-display" style="margin-top:20px;">
+                <div class="total-label">合計給料</div>
+                <div class="total-amount">¥${total.toLocaleString()}</div>
+            </div>
+        </div>
+        ${Object.keys(drinkBacks).length ? `<div style="margin-top:20px;"><h4 style="margin-bottom:10px;color:var(--primary);">ドリンク詳細</h4>
+            ${Object.entries(drinkBacks).map(([type,data]) => {
+                const bi = type==='シャンパン' ? `${cast.champagneBackRate}% バック` : `¥${cast.drinkBacks[type]}/杯`;
+                return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${type}</div><span class="badge badge-success">¥${Math.round(data.amount).toLocaleString()}</span></div><div class="list-item-meta">${data.count}杯 × ${bi}</div></div>`;
+            }).join('')}</div>` : ''}
+        ${wts.length ? `<div style="margin-top:20px;"><h4 style="margin-bottom:10px;color:var(--primary);">勤務履歴</h4>
+            ${wts.map(w => `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${new Date(w.date).toLocaleDateString('ja-JP')}</div><span class="badge badge-primary">${w.hours}時間</span></div><div class="list-item-meta">${w.start} ～ ${w.end}${w.dohan?' / 同伴あり':''}</div></div>`).join('')}</div>` : ''}
+    `;
+}
+
+// ── 売上 ────────────────────────────────────────────
+function loadSalesData() {
+    const period = document.getElementById('salesPeriod').value;
+    const type = document.getElementById('salesType').value;
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const filterDate = period === 'today'
+        ? d => d.split('T')[0] === today
+        : d => { const dt = new Date(d); return dt.getFullYear()===now.getFullYear()&&dt.getMonth()===now.getMonth(); };
+    const invs = appData.invoices.filter(i => filterDate(i.completedAt || i.createdAt));
+    if (type === 'total') renderTotalSales(invs);
+    else if (type === 'customer') renderCustomerSales(invs);
+    else if (type === 'cast') renderCastSales(invs);
+    else if (type === 'cross') renderCrossTable(invs);
+}
+
+function renderTotalSales(invs) {
+    const total = invs.reduce((s,i)=>s+i.total,0);
+    const dc = invs.reduce((s,i)=>s+i.drinks.reduce((ss,d)=>ss+d.count,0),0);
+    const cuSet = new Set(invs.map(i=>i.customerId)).size;
+    document.getElementById('salesSummary').innerHTML = `<div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${total.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">伝票数</div><div class="stat-value">${invs.length}件</div></div>
+        <div class="stat-card"><div class="stat-label">来店客数</div><div class="stat-value">${cuSet}名</div></div>
+        <div class="stat-card"><div class="stat-label">ドリンク数</div><div class="stat-value">${dc}杯</div></div>
+    </div>`;
+    document.getElementById('salesDetails').innerHTML = '';
+}
+
+function renderCustomerSales(invs) {
+    const sales = {};
+    invs.forEach(i => {
+        if (!sales[i.customerId]) sales[i.customerId] = { total:0, count:0, drinks:0 };
+        sales[i.customerId].total += i.total;
+        sales[i.customerId].count++;
+        sales[i.customerId].drinks += i.drinks.reduce((s,d)=>s+d.count,0);
+    });
+    const sorted = Object.entries(sales).sort((a,b)=>b[1].total-a[1].total);
+    const grandTotal = invs.reduce((s,i)=>s+i.total,0);
+    document.getElementById('salesSummary').innerHTML = `<div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${grandTotal.toLocaleString()}</div></div>`;
+    document.getElementById('salesDetails').innerHTML = sorted.length ? sorted.map(([cid,d]) => {
+        const cu = appData.customers.find(x=>x.id===cid);
+        return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${cu?.name||'不明'}</div><span class="badge badge-primary">¥${d.total.toLocaleString()}</span></div><div class="list-item-meta">${d.count}回来店 / ドリンク${d.drinks}杯</div></div>`;
+    }).join('') : '<div class="empty-state"><div>売上データがありません</div></div>';
+}
+
+function renderCastSales(invs) {
+    const castTotals = {};
+    invs.forEach(inv => {
+        const castIds = [...new Set(inv.drinks.filter(d=>d.castId).map(d=>d.castId))];
+        if (!castIds.length) return;
+        castIds.forEach(cid => {
+            if (!castTotals[cid]) castTotals[cid] = { drinkTotal:0, drinkCount:0, invSet: new Set() };
+            inv.drinks.filter(d=>d.castId===cid).forEach(d => {
+                castTotals[cid].drinkCount += d.count;
+                castTotals[cid].drinkTotal += d.price * d.count;
+            });
+            castTotals[cid].invSet.add(inv.id);
+        });
+    });
+    const grandTotal = invs.reduce((s,i)=>s+i.total,0);
+    document.getElementById('salesSummary').innerHTML = `<div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${grandTotal.toLocaleString()}</div></div>`;
+    const sorted = Object.entries(castTotals).sort((a,b)=>b[1].drinkTotal-a[1].drinkTotal);
+    document.getElementById('salesDetails').innerHTML = sorted.length ? sorted.map(([cid,d]) => {
+        const cast = appData.casts.find(x=>x.id===cid);
+        return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${cast?.name||'不明'}</div><span class="badge badge-primary">ドリンク ¥${d.drinkTotal.toLocaleString()}</span></div><div class="list-item-meta">関連伝票 ${d.invSet.size}件 / ${d.drinkCount}杯</div></div>`;
+    }).join('') : '<div class="empty-state"><div>売上データがありません</div></div>';
+}
+
+function renderCrossTable(invs) {
+    document.getElementById('salesSummary').innerHTML = `<div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${invs.reduce((s,i)=>s+i.total,0).toLocaleString()}</div></div>`;
+    if (!invs.length) {
+        document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>売上データがありません</div></div>'; return;
+    }
+    const crossData = {};
+    invs.forEach(inv => {
+        const cuId = inv.customerId;
+        if (!cuId) return;
+        if (!crossData[cuId]) crossData[cuId] = {};
+        const castDrinkMap = {};
+        inv.drinks.forEach(d => {
+            if (d.castId) castDrinkMap[d.castId] = (castDrinkMap[d.castId] || 0) + d.price * d.count;
+        });
+        const drinksTotalAll = inv.drinks.reduce((s,d)=>s+d.price*d.count,0);
+        const baseCost = inv.total - drinksTotalAll;
+        const castIds = Object.keys(castDrinkMap);
+        if (!castIds.length) {
+            crossData[cuId]['__none__'] = (crossData[cuId]['__none__'] || 0) + inv.total;
+        } else {
+            const basePer = Math.round(baseCost / castIds.length);
+            castIds.forEach(cid => {
+                crossData[cuId][cid] = (crossData[cuId][cid] || 0) + basePer + castDrinkMap[cid];
+            });
+        }
+    });
+    const castIdSet = new Set();
+    Object.values(crossData).forEach(row => Object.keys(row).forEach(k => castIdSet.add(k)));
+    const castIds = [...castIdSet].filter(k => k !== '__none__');
+    const hasNone = [...castIdSet].includes('__none__');
+    const customerIds = Object.keys(crossData).sort((a,b) => {
+        const ta = Object.values(crossData[a]).reduce((s,v)=>s+v,0);
+        const tb = Object.values(crossData[b]).reduce((s,v)=>s+v,0);
+        return tb - ta;
+    });
+    const castNames = castIds.map(id => appData.casts.find(c=>c.id===id)?.name || '不明');
+    let html = `<div style="margin-top:10px;font-size:12px;color:var(--text-dim);margin-bottom:8px;">※ セット料金はキャスト数で均等割り</div>
+    <div class="cross-table-wrap"><table class="cross-table">
+        <thead><tr><th>顧客</th>${castNames.map(n=>`<th>${n}</th>`).join('')}${hasNone?'<th>-</th>':''}
+        <th style="color:var(--warning);">合計</th></tr></thead><tbody>`;
+    customerIds.forEach(cuId => {
+        const cu = appData.customers.find(c=>c.id===cuId);
+        const row = crossData[cuId];
+        const rowTotal = Object.values(row).reduce((s,v)=>s+v,0);
+        html += `<tr><td>${cu?.name||'不明'}</td>`;
+        castIds.forEach(cid => {
+            const v = row[cid] || 0;
+            html += `<td class="${v===0?'zero':''}">${v===0?'-':'¥'+v.toLocaleString()}</td>`;
+        });
+        if (hasNone) html += `<td class="${(row['__none__']||0)===0?'zero':''}">${(row['__none__']||0)===0?'-':'¥'+(row['__none__']||0).toLocaleString()}</td>`;
+        html += `<td style="color:var(--warning);font-weight:700;">¥${rowTotal.toLocaleString()}</td></tr>`;
+    });
+    html += `<tr class="total-row"><td>合計</td>`;
+    castIds.forEach(cid => {
+        const v = customerIds.reduce((s,cuId)=>s+(crossData[cuId][cid]||0),0);
+        html += `<td>¥${v.toLocaleString()}</td>`;
+    });
+    if (hasNone) {
+        const v = customerIds.reduce((s,cuId)=>s+(crossData[cuId]['__none__']||0),0);
+        html += `<td>¥${v.toLocaleString()}</td>`;
+    }
+    const grandTotal = invs.reduce((s,i)=>s+i.total,0);
+    html += `<td>¥${grandTotal.toLocaleString()}</td></tr>`;
+    html += '</tbody></table></div>';
+    document.getElementById('salesDetails').innerHTML = html;
+}
+
+// ── 顧客詳細 ────────────────────────────────────────
+function showCustomerDetail(customerId) {
+    const cu = appData.customers.find(c=>c.id===customerId);
+    if (!cu) return;
+    const invs = appData.invoices.filter(i=>i.customerId===customerId);
+    const totalSpent = invs.reduce((s,i)=>s+i.total,0);
+    const totalDrinks = invs.reduce((s,i)=>s+i.drinks.reduce((ss,d)=>ss+d.count,0),0);
+    const castDrinks = {};
+    invs.forEach(i => i.drinks.forEach(d => {
+        if (d.castId) castDrinks[d.castId] = (castDrinks[d.castId]||0) + d.count;
+    }));
+    const favCastId = Object.entries(castDrinks).sort((a,b)=>b[1]-a[1])[0]?.[0];
+    const favCast = favCastId ? appData.casts.find(c=>c.id===favCastId) : null;
+    const castSpend = {};
+    invs.forEach(inv => {
+        const drinksTot = inv.drinks.reduce((s,d)=>s+d.price*d.count,0);
+        const base = inv.total - drinksTot;
+        const castIds = [...new Set(inv.drinks.filter(d=>d.castId).map(d=>d.castId))];
+        if (castIds.length) {
+            const basePer = Math.round(base / castIds.length);
+            castIds.forEach(cid => {
+                const dAmt = inv.drinks.filter(d=>d.castId===cid).reduce((s,d)=>s+d.price*d.count,0);
+                castSpend[cid] = (castSpend[cid]||0) + basePer + dAmt;
+            });
+        }
+    });
+    const castSpendSorted = Object.entries(castSpend).sort((a,b)=>b[1]-a[1]);
+    document.getElementById('customerModalBody').innerHTML = `
+        <div class="stat-grid">
+            <div class="stat-card"><div class="stat-label">来店回数</div><div class="stat-value">${invs.length}回</div></div>
+            <div class="stat-card"><div class="stat-label">総利用額</div><div class="stat-value">¥${totalSpent.toLocaleString()}</div></div>
+            <div class="stat-card"><div class="stat-label">ドリンク数</div><div class="stat-value">${totalDrinks}杯</div></div>
+            <div class="stat-card"><div class="stat-label">お気に入り</div><div class="stat-value" style="font-size:16px;">${favCast?.name||'-'}</div></div>
+        </div>
+        <div style="margin-top:20px;">
+            <div class="form-label">基本情報</div>
+            <div class="list-item">
+                <div class="list-item-meta">誕生日: ${cu.birthday||'未登録'}</div>
+                ${cu.memo?`<div class="list-item-meta" style="margin-top:8px;">メモ: ${cu.memo}</div>`:''}
+            </div>
+        </div>
+        ${castSpendSorted.length ? `
+        <div style="margin-top:20px;">
+            <div class="form-label" style="color:var(--primary);">キャスト別使用額</div>
+            ${castSpendSorted.map(([cid,amt]) => {
+                const cast = appData.casts.find(c=>c.id===cid);
+                return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${cast?.name||'不明'}</div><span class="badge badge-primary">¥${amt.toLocaleString()}</span></div></div>`;
+            }).join('')}
+        </div>` : ''}
+        <div style="margin-top:20px;">
+            <div class="form-label">来店履歴（最新5件）</div>
+            ${invs.slice(-5).reverse().map(inv => {
+                const date = new Date(inv.completedAt||inv.createdAt);
+                const seatLbl = inv.seatPrice>0 ? ` / BOX${inv.boxNum?'#'+inv.boxNum:''}` : '';
+                return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${date.toLocaleDateString('ja-JP')}</div><span class="badge badge-primary">¥${inv.total.toLocaleString()}</span></div><div class="list-item-meta">${inv.people||1}名${seatLbl} / ドリンク${inv.drinks.reduce((s,d)=>s+d.count,0)}杯</div></div>`;
+            }).join('')}
+        </div>
+    `;
+    openModal('customerModal');
+}
+
+// ── ユーティリティ ──────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function renderCastSelects() {
+    ['salaryCast','workCast'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const v = el.value;
+        el.innerHTML = '<option value="">キャストを選択</option>';
+        appData.casts.forEach(c => { const o = document.createElement('option'); o.value=c.id; o.textContent=c.name; el.appendChild(o); });
+        el.value = v;
+    });
+}
+
+function renderCustomerSelects() {
+    const el = document.getElementById('editInvoiceCustomer');
+    if (!el) return;
+    const v = el.value;
+    el.innerHTML = '<option value="">顧客を選択</option>';
+    appData.customers.forEach(c => { const o = document.createElement('option'); o.value=c.id; o.textContent=c.name; el.appendChild(o); });
+    el.value = v;
+}
+
+function renderAll() {
+    renderCastSelects();
+    renderCustomerSelects();
+    renderCastList();
+    renderCustomerList();
+    renderActiveInvoices();
+    renderCompletedInvoices();
+    renderDrinkSettings();
+}
+</script>
+</body>
+</html>
