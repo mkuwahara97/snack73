@@ -440,6 +440,74 @@
         .counter-wrap.drink-counter { border-color: var(--secondary); }
         .counter-wrap.drink-counter .counter-btn { background: rgba(0,204,255,0.08); }
         .counter-wrap.drink-counter .counter-btn:active { background: var(--secondary); color: var(--dark); }
+
+        /* ── レシート印刷 ── */
+        #receiptPrintArea { display: none; }
+        @media print {
+            body * { visibility: hidden !important; }
+            #receiptPrintArea { display: block !important; }
+            #receiptPrintArea, #receiptPrintArea * { visibility: visible !important; }
+            #receiptPrintArea {
+                position: fixed !important;
+                top: 0; left: 0;
+                width: 80mm;
+                padding: 4mm;
+                background: white !important;
+                color: black !important;
+            }
+        }
+        .receipt-wrap {
+            font-family: 'Noto Sans JP', monospace;
+            background: white;
+            color: #111;
+            width: 100%;
+            padding: 16px 12px;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+        .receipt-shop {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            margin-bottom: 2px;
+        }
+        .receipt-sub {
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .receipt-divider {
+            border: none;
+            border-top: 1px dashed #999;
+            margin: 8px 0;
+        }
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            padding: 1px 0;
+        }
+        .receipt-row.indent {
+            padding-left: 14px;
+            font-size: 12px;
+            color: #444;
+        }
+        .receipt-total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            font-weight: 900;
+            padding: 6px 0 2px;
+        }
+        .receipt-footer {
+            text-align: center;
+            font-size: 11px;
+            color: #888;
+            margin-top: 10px;
+            line-height: 1.9;
+        }
     </style>
 </head>
 <body>
@@ -805,6 +873,7 @@
                 <button class="btn btn-warning" onclick="saveEditInvoice()">💾 途中保存</button>
                 <button class="btn btn-success" onclick="completeInvoice()">✅ 確定</button>
             </div>
+            <button class="btn btn-secondary btn-block" id="printInvoiceBtn" style="display:none;margin-bottom:10px;" onclick="printReceipt(currentEditingInvoiceId)">🖨️ レシートを印刷</button>
             <button class="btn btn-danger btn-block" onclick="deleteInvoice()">🗑️ 伝票を削除</button>
         </div>
     </div>
@@ -1338,6 +1407,8 @@ function editCompletedInvoice(invoiceId) {
 }
 function openInvoiceModal(inv, isCompleted) {
     document.getElementById('invoiceModalTitle').textContent = isCompleted ? '伝票編集（確定済）' : '伝票編集';
+    const pb = document.getElementById('printInvoiceBtn');
+    if (pb) pb.style.display = isCompleted ? 'flex' : 'none';
     renderCustomerSelects();
     document.getElementById('editInvoiceCustomer').value = inv.customerId || '';
     document.getElementById('editInvoiceSet').value = `${inv.setPrice}-${inv.hasBottle}`;
@@ -1629,7 +1700,9 @@ async function completeInvoice() {
     closeModal('invoiceModal');
     renderActiveInvoices();
     renderCompletedInvoices();
-    alert('伝票を確定しました！');
+    if (confirm('伝票を確定しました！\nレシートを印刷しますか？')) {
+        printReceipt(inv.id);
+    }
 }
 
 function collectDrinks() {
@@ -1702,7 +1775,10 @@ function renderCompletedInvoices() {
         return `<div class="list-item" onclick="editCompletedInvoice('${inv.id}')">
             <div class="list-item-header">
                 <div class="list-item-title">${cu?.name||'不明'}</div>
-                <span class="badge badge-success">¥${inv.total.toLocaleString()}</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="badge badge-success">¥${inv.total.toLocaleString()}</span>
+                    <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="printReceipt('${inv.id}');event.stopPropagation();">🖨️</button>
+                </div>
             </div>
             <div class="list-item-meta">${time} / ${inv.people||1}名${seatLabel} / ドリンク${inv.drinks.reduce((s,d)=>s+d.count,0)}杯</div>
         </div>`;
@@ -2254,6 +2330,82 @@ function showCustomerDetail(customerId) {
     openModal('customerModal');
 }
 
+// ── レシート印刷 ──────────────────────────────────────
+function printReceipt(invoiceId) {
+    const inv = appData.invoices.find(i => i.id === invoiceId);
+    if (!inv) { alert('確定済みの伝票が見つかりません'); return; }
+
+    const cu = appData.customers.find(c => c.id === inv.customerId);
+    const dt = new Date(inv.completedAt || inv.createdAt);
+    const dateStr = dt.toLocaleDateString('ja-JP', {year:'numeric', month:'long', day:'numeric'});
+    const timeStr = dt.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+    const seatStr = inv.seatPrice > 0
+        ? 'ボックス席' + (inv.boxNum ? ' #' + inv.boxNum : '') + ' (+¥1,000)'
+        : 'カウンター席';
+    const setLabel = inv.hasBottle ? 'セット料金（ボトル有）' : 'セット料金（ボトル無）';
+
+    // ドリンク明細をキャスト名付きで組み立て
+    const drinkLines = [];
+    const kleinerMap = {};
+    inv.drinks.forEach(d => {
+        if (d.shotType === 'クライナー') {
+            const key = d.castId || d.customerId || 'unknown';
+            if (!kleinerMap[key]) kleinerMap[key] = { d, count: 0, castId: d.castId, customerId: d.customerId };
+            kleinerMap[key].count += d.count;
+        } else {
+            const who = d.castId
+                ? appData.casts.find(c => c.id === d.castId)?.name || ''
+                : appData.customers.find(c => c.id === d.customerId)?.name || '';
+            drinkLines.push({ name: d.name + (who ? '（' + who + '）' : ''), price: d.price, count: d.count });
+        }
+    });
+    Object.values(kleinerMap).forEach(({ d, count, castId, customerId }) => {
+        const who = castId
+            ? appData.casts.find(c => c.id === castId)?.name || ''
+            : appData.customers.find(c => c.id === customerId)?.name || '';
+        const amt = Math.floor(count / 10) * 10 * 800 + (count % 10) * 1000;
+        drinkLines.push({ name: 'クライナー' + (who ? '（' + who + '）' : ''), price: amt, count: 1, isTotalLine: true });
+    });
+
+    // 小計の組み立て
+    const rows = [];
+    rows.push({ label: setLabel + ' × ' + inv.people + '名', price: inv.setPrice * inv.people });
+    if (inv.seatPrice > 0) rows.push({ label: seatStr, price: inv.seatPrice });
+    if (inv.extension > 0) {
+        const extMins = inv.extension * 30;
+        rows.push({ label: '延長（' + extMins + '分）', price: inv.total - (inv.setPrice * inv.people + inv.seatPrice + inv.karaoke * 200 + drinkLines.reduce((s,d)=>s+d.price*(d.isTotalLine?1:d.count),0)) });
+    }
+    if (inv.karaoke > 0) rows.push({ label: 'カラオケ × ' + inv.karaoke + '曲', price: inv.karaoke * 200 });
+    drinkLines.forEach(d => {
+        const amt = d.isTotalLine ? d.price : d.price * d.count;
+        const countStr = d.isTotalLine ? '' : ' × ' + d.count;
+        rows.push({ label: d.name + countStr, price: amt, indent: true });
+    });
+
+    const rowsHtml = rows.map(r =>
+        '<div class="receipt-row' + (r.indent ? ' indent' : '') + '">' +
+        '<span>' + r.label + '</span>' +
+        '<span>¥' + r.price.toLocaleString() + '</span>' +
+        '</div>'
+    ).join('');
+
+    const html = '<div class="receipt-wrap">' +
+        '<div class="receipt-shop">SNACK 73</div>' +
+        '<div class="receipt-sub">スナックセブンスリー</div>' +
+        '<hr class="receipt-divider">' +
+        '<div class="receipt-row"><span>日時</span><span>' + dateStr + ' ' + timeStr + '</span></div>' +
+        '<hr class="receipt-divider">' +
+        rowsHtml +
+        '<hr class="receipt-divider">' +
+        '<div class="receipt-total-row"><span>合　計</span><span>¥' + inv.total.toLocaleString() + '</span></div>' +
+        '<hr class="receipt-divider">' +
+        '<div class="receipt-footer">ありがとうございました<br>またのお越しをお待ちしております</div>' +
+        '</div>';
+
+    document.getElementById('receiptPrintArea').innerHTML = html;
+    window.print();
+}
+
 // ── ユーティリティ ──────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
@@ -2288,5 +2440,8 @@ function renderAll() {
     renderDrinkSettings();
 }
 </script>
+<!-- レシート印刷エリア（印刷時のみ表示） -->
+<div id="receiptPrintArea"></div>
+
 </body>
 </html>
