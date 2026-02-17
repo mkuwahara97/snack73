@@ -893,6 +893,59 @@
     </div>
 </div>
 
+<!-- 勤務時間編集モーダル -->
+<div id="editWorkTimeModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">勤務時間を編集</div>
+            <button class="modal-close" onclick="closeModal('editWorkTimeModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editWorkTimeId">
+            <div class="form-group">
+                <label class="form-label">日付</label>
+                <input type="date" id="editWorkDate" class="form-control">
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">開始時刻</label>
+                    <select id="editWorkStart" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">終了時刻</label>
+                    <select id="editWorkEnd" class="form-control"></select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">同伴</label>
+                <select id="editWorkDohan" class="form-control">
+                    <option value="0">なし</option>
+                    <option value="1">あり</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">送迎代</label>
+                <select id="editWorkTransport" class="form-control">
+                    <option value="-1">キャスト設定を使用</option>
+                    <option value="0">なし (¥0)</option>
+                    <option value="500">¥500</option>
+                    <option value="1000">¥1,000</option>
+                    <option value="1500">¥1,500</option>
+                    <option value="2000">¥2,000</option>
+                    <option value="2500">¥2,500</option>
+                    <option value="3000">¥3,000</option>
+                    <option value="4000">¥4,000</option>
+                    <option value="5000">¥5,000</option>
+                </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+                <button class="btn btn-danger" onclick="deleteWorkTime()">🗑️ 削除</button>
+                <button class="btn btn-success" onclick="saveEditWorkTime()">💾 保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Firebase SDK (CDN) -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -1709,6 +1762,105 @@ function buildTimeSelects() {
     fillSelect(endSel, true);
 }
 
+// ── 勤務時間 編集・削除 ─────────────────────────────
+function openEditWorkTime(workId) {
+    const w = appData.workTimes.find(x => x.id === workId);
+    if (!w) return;
+
+    // モーダルのプルダウンを構築（未構築なら）
+    buildEditWorkTimeSelects();
+
+    document.getElementById('editWorkTimeId').value = w.id;
+    document.getElementById('editWorkDate').value = w.date;
+    document.getElementById('editWorkStart').value = w.start;
+    document.getElementById('editWorkEnd').value = w.end;
+    document.getElementById('editWorkDohan').value = w.dohan || 0;
+    document.getElementById('editWorkTransport').value =
+        (w.transportOverride !== undefined) ? w.transportOverride : -1;
+    openModal('editWorkTimeModal');
+}
+
+function buildEditWorkTimeSelects() {
+    const startSel = document.getElementById('editWorkStart');
+    if (startSel.options.length > 1) return; // 初回のみ
+
+    const slots = [];
+    for (let h = 0; h < 24; h++) {
+        for (let m of [0, 30]) {
+            const hh = String(h).padStart(2,'0');
+            const mm = String(m).padStart(2,'0');
+            slots.push(hh + ':' + mm);
+        }
+    }
+    const lateSlots = [];
+    for (let h = 0; h <= 6; h++) {
+        for (let m of [0, 30]) {
+            const hh = String(h).padStart(2,'0');
+            const mm = String(m).padStart(2,'0');
+            lateSlots.push({ label: '翌' + hh + ':' + mm, value: hh + ':' + mm });
+        }
+    }
+
+    function fillSel(sel, includeLate) {
+        sel.innerHTML = '<option value="">選択</option>';
+        slots.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s; opt.textContent = s;
+            sel.appendChild(opt);
+        });
+        if (includeLate) {
+            const grp = document.createElement('optgroup');
+            grp.label = '── 翌日 ──';
+            lateSlots.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.value; opt.textContent = s.label;
+                grp.appendChild(opt);
+            });
+            sel.appendChild(grp);
+        }
+    }
+    fillSel(startSel, false);
+    fillSel(document.getElementById('editWorkEnd'), true);
+}
+
+async function saveEditWorkTime() {
+    const id = document.getElementById('editWorkTimeId').value;
+    const date = document.getElementById('editWorkDate').value;
+    const start = document.getElementById('editWorkStart').value;
+    const end = document.getElementById('editWorkEnd').value;
+    const dohan = parseInt(document.getElementById('editWorkDohan').value);
+    const transportOverride = parseInt(document.getElementById('editWorkTransport').value);
+    if (!date || !start || !end) { alert('日付と時刻を入力してください'); return; }
+
+    const idx = appData.workTimes.findIndex(x => x.id === id);
+    if (idx === -1) return;
+
+    let st = new Date(`${date}T${start}`), et = new Date(`${date}T${end}`);
+    if (et <= st) et.setDate(et.getDate() + 1);
+    const hrs = Math.round((et - st) / (1000*60*60) * 2) / 2;
+
+    appData.workTimes[idx] = { ...appData.workTimes[idx], date, start, end, hours: hrs, dohan, transportOverride };
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editWorkTimeModal');
+    loadCastSalaryData();
+    alert('更新しました！');
+}
+
+async function deleteWorkTime() {
+    const id = document.getElementById('editWorkTimeId').value;
+    const w = appData.workTimes.find(x => x.id === id);
+    if (!confirm(`${new Date(w.date).toLocaleDateString('ja-JP')} の勤務記録を削除してもよろしいですか？`)) return;
+    appData.workTimes = appData.workTimes.filter(x => x.id !== id);
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editWorkTimeModal');
+    loadCastSalaryData();
+    alert('削除しました');
+}
+
 async function saveQuickWorkTime() {
     const castId = document.getElementById('salaryCast').value;
     const date = document.getElementById('quickWorkDate').value;
@@ -1800,7 +1952,16 @@ function loadCastSalaryData() {
             ${wts.map(w => {
                 const tAmt = (w.transportOverride !== undefined && w.transportOverride >= 0) ? w.transportOverride : cast.transport;
                 const tText = tAmt > 0 ? ` / 送迎 ¥${tAmt.toLocaleString()}` : '';
-                return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${new Date(w.date).toLocaleDateString('ja-JP')}</div><span class="badge badge-primary">${w.hours}時間</span></div><div class="list-item-meta">${w.start} ～ ${w.end}${w.dohan?' / 同伴あり':''}${tText}</div></div>`;
+                return `<div class="list-item" style="cursor:pointer;" onclick="openEditWorkTime('${w.id}')">
+                    <div class="list-item-header">
+                        <div class="list-item-title">${new Date(w.date).toLocaleDateString('ja-JP')}</div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="badge badge-primary">${w.hours}時間</span>
+                            <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="openEditWorkTime('${w.id}');event.stopPropagation();">編集</button>
+                        </div>
+                    </div>
+                    <div class="list-item-meta">${w.start} ～ ${w.end}${w.dohan?' / 同伴あり':''}${tText}</div>
+                </div>`;
             }).join('')}</div>` : ''}
     `;
 }
