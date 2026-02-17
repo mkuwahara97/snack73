@@ -732,6 +732,89 @@
     </div>
 </div>
 
+<!-- キャスト編集モーダル -->
+<div id="editCastModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">キャスト編集</div>
+            <button class="modal-close" onclick="closeModal('editCastModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editCastId">
+            <div class="form-group">
+                <label class="form-label">キャスト名</label>
+                <input type="text" id="editCastName" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">誕生日（任意）</label>
+                <input type="date" id="editCastBirthday" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">時給</label>
+                <input type="number" id="editCastHourly" class="form-control" min="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">ドリンクバック設定</label>
+                <div class="grid-2">
+                    <div>
+                        <label class="form-label">カクテル</label>
+                        <input type="number" id="editCastCocktailBack" class="form-control" min="0">
+                    </div>
+                    <div>
+                        <label class="form-label">ショット</label>
+                        <input type="number" id="editCastShotBack" class="form-control" min="0">
+                    </div>
+                    <div style="grid-column: 1 / -1;">
+                        <label class="form-label">シャンパンバック率 (%)</label>
+                        <input type="number" id="editCastChampagneBackRate" class="form-control" min="0" max="100">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">同伴バック</label>
+                <input type="number" id="editCastDohanBack" class="form-control" min="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">送迎代</label>
+                <input type="number" id="editCastTransport" class="form-control" min="0">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+                <button class="btn btn-danger" onclick="deleteCast()">🗑️ 削除</button>
+                <button class="btn btn-success" onclick="saveEditCast()">💾 保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 顧客編集モーダル -->
+<div id="editCustomerModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">顧客編集</div>
+            <button class="modal-close" onclick="closeModal('editCustomerModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editCustomerId">
+            <div class="form-group">
+                <label class="form-label">顧客名<span class="required">*</span></label>
+                <input type="text" id="editCustomerName" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">誕生日（任意）</label>
+                <input type="date" id="editCustomerBirthday" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">メモ（任意）</label>
+                <textarea id="editCustomerMemo" class="form-control" rows="3"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+                <button class="btn btn-danger" onclick="deleteCustomer()">🗑️ 削除</button>
+                <button class="btn btn-success" onclick="saveEditCustomer()">💾 保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Firebase SDK (CDN) -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -929,11 +1012,69 @@ function renderCastList() {
         return `<div class="list-item">
             <div class="list-item-header">
                 <div class="list-item-title">${cast.name}</div>
-                <span class="badge badge-primary">時給 ¥${cast.hourly.toLocaleString()}</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="badge badge-primary">時給 ¥${cast.hourly.toLocaleString()}</span>
+                    <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" onclick="openEditCast('${cast.id}');event.stopPropagation();">編集</button>
+                </div>
             </div>
             <div class="list-item-meta">${bdayTxt}カクテル: ¥${cast.drinkBacks['カクテル']} / ショット: ¥${cast.drinkBacks['ショット']} / シャンパン: ${cast.champagneBackRate}%</div>
         </div>`;
     }).join('');
+}
+
+function openEditCast(castId) {
+    const cast = appData.casts.find(c => c.id === castId);
+    if (!cast) return;
+    document.getElementById('editCastId').value = cast.id;
+    document.getElementById('editCastName').value = cast.name;
+    document.getElementById('editCastBirthday').value = cast.birthday || '';
+    document.getElementById('editCastHourly').value = cast.hourly;
+    document.getElementById('editCastCocktailBack').value = cast.drinkBacks['カクテル'];
+    document.getElementById('editCastShotBack').value = cast.drinkBacks['ショット'];
+    document.getElementById('editCastChampagneBackRate').value = cast.champagneBackRate;
+    document.getElementById('editCastDohanBack').value = cast.dohanBack;
+    document.getElementById('editCastTransport').value = cast.transport;
+    openModal('editCastModal');
+}
+
+async function saveEditCast() {
+    const castId = document.getElementById('editCastId').value;
+    const name = document.getElementById('editCastName').value.trim();
+    if (!name) { alert('キャスト名を入力してください'); return; }
+    const idx = appData.casts.findIndex(c => c.id === castId);
+    if (idx === -1) return;
+    appData.casts[idx] = {
+        ...appData.casts[idx],
+        name,
+        birthday: document.getElementById('editCastBirthday').value,
+        hourly: parseInt(document.getElementById('editCastHourly').value) || 0,
+        drinkBacks: {
+            'カクテル': parseInt(document.getElementById('editCastCocktailBack').value) || 0,
+            'ショット': parseInt(document.getElementById('editCastShotBack').value) || 0
+        },
+        champagneBackRate: parseInt(document.getElementById('editCastChampagneBackRate').value) || 0,
+        dohanBack: parseInt(document.getElementById('editCastDohanBack').value) || 0,
+        transport: parseInt(document.getElementById('editCastTransport').value) || 0
+    };
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editCastModal');
+    renderAll();
+    alert('キャスト情報を更新しました！');
+}
+
+async function deleteCast() {
+    const castId = document.getElementById('editCastId').value;
+    const cast = appData.casts.find(c => c.id === castId);
+    if (!confirm(`「${cast?.name}」を削除してもよろしいですか？`)) return;
+    appData.casts = appData.casts.filter(c => c.id !== castId);
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editCastModal');
+    renderAll();
+    alert('削除しました');
 }
 
 // ── 顧客 ────────────────────────────────────────────
@@ -966,11 +1107,57 @@ function renderCustomerList() {
         return `<div class="list-item" onclick="showCustomerDetail('${cu.id}')">
             <div class="list-item-header">
                 <div class="list-item-title">${cu.name}</div>
-                <span class="badge badge-success">${cnt}回来店</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="badge badge-success">${cnt}回来店</span>
+                    <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" onclick="openEditCustomer('${cu.id}');event.stopPropagation();">編集</button>
+                </div>
             </div>
             <div class="list-item-meta">${cu.birthday ? '誕生日: ' + cu.birthday : '誕生日未登録'}</div>
         </div>`;
     }).join('');
+}
+
+function openEditCustomer(customerId) {
+    const cu = appData.customers.find(c => c.id === customerId);
+    if (!cu) return;
+    document.getElementById('editCustomerId').value = cu.id;
+    document.getElementById('editCustomerName').value = cu.name;
+    document.getElementById('editCustomerBirthday').value = cu.birthday || '';
+    document.getElementById('editCustomerMemo').value = cu.memo || '';
+    openModal('editCustomerModal');
+}
+
+async function saveEditCustomer() {
+    const customerId = document.getElementById('editCustomerId').value;
+    const name = document.getElementById('editCustomerName').value.trim();
+    if (!name) { alert('顧客名を入力してください'); return; }
+    const idx = appData.customers.findIndex(c => c.id === customerId);
+    if (idx === -1) return;
+    appData.customers[idx] = {
+        ...appData.customers[idx],
+        name,
+        birthday: document.getElementById('editCustomerBirthday').value,
+        memo: document.getElementById('editCustomerMemo').value.trim()
+    };
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editCustomerModal');
+    renderAll();
+    alert('顧客情報を更新しました！');
+}
+
+async function deleteCustomer() {
+    const customerId = document.getElementById('editCustomerId').value;
+    const cu = appData.customers.find(c => c.id === customerId);
+    if (!confirm(`「${cu?.name}」を削除してもよろしいですか？`)) return;
+    appData.customers = appData.customers.filter(c => c.id !== customerId);
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editCustomerModal');
+    renderAll();
+    alert('削除しました');
 }
 
 // ── 伝票 ────────────────────────────────────────────
