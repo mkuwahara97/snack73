@@ -638,6 +638,9 @@
             </div>
             <div class="card">
                 <div class="card-title">📇 顧客一覧</div>
+                <div class="form-group" style="margin-bottom:15px;">
+                    <input type="text" id="customerSearchInput" class="form-control" placeholder="🔍 顧客名で検索..." oninput="renderCustomerList()">
+                </div>
                 <div id="customerList"></div>
             </div>
         </div>
@@ -1099,10 +1102,18 @@ async function addCustomer() {
 }
 function renderCustomerList() {
     const c = document.getElementById('customerList');
+    const searchEl = document.getElementById('customerSearchInput');
+    const keyword = searchEl ? searchEl.value.trim() : '';
     if (!appData.customers.length) {
         c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div>顧客が登録されていません</div></div>'; return;
     }
-    c.innerHTML = appData.customers.map(cu => {
+    const filtered = keyword
+        ? appData.customers.filter(cu => cu.name.includes(keyword))
+        : appData.customers;
+    if (!filtered.length) {
+        c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><div>「' + keyword + '」に一致する顧客が見つかりません</div></div>'; return;
+    }
+    c.innerHTML = filtered.map(cu => {
         const cnt = appData.invoices.filter(i => i.customerId === cu.id).length;
         return `<div class="list-item" onclick="showCustomerDetail('${cu.id}')">
             <div class="list-item-header">
