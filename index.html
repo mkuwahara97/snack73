@@ -656,15 +656,26 @@
             <div class="card">
                 <div class="card-title">📊 売上集計</div>
                 <div class="filter-bar">
-                    <select id="salesPeriod" class="form-control" onchange="loadSalesData()">
+                    <select id="salesPeriod" class="form-control" onchange="onSalesPeriodChange()">
                         <option value="today">本日</option>
                         <option value="month">今月</option>
+                        <option value="monthly">月ごと</option>
                     </select>
                     <select id="salesType" class="form-control" onchange="loadSalesData()">
                         <option value="total">店舗全体</option>
                         <option value="customer">顧客別</option>
                         <option value="cast">キャスト別</option>
                         <option value="cross">顧客×キャスト</option>
+                    </select>
+                </div>
+                <!-- 月選択（月ごと選択時に表示） -->
+                <div id="salesMonthRow" style="display:none;margin-bottom:12px;">
+                    <select id="salesMonth" class="form-control" onchange="onSalesMonthChange()"></select>
+                </div>
+                <!-- 日付選択（月を選んだあとに表示） -->
+                <div id="salesDayRow" style="display:none;margin-bottom:12px;">
+                    <select id="salesDay" class="form-control" onchange="loadSalesData()">
+                        <option value="">── 日付を選択（月合計を表示）</option>
                     </select>
                 </div>
                 <div id="salesSummary"></div>
@@ -1795,26 +1806,118 @@ function loadCastSalaryData() {
 }
 
 // ── 売上 ────────────────────────────────────────────
+// ── 売上期間切り替え ────────────────────────────────
+function onSalesPeriodChange() {
+    const period = document.getElementById('salesPeriod').value;
+    const monthRow = document.getElementById('salesMonthRow');
+    const dayRow = document.getElementById('salesDayRow');
+
+    if (period === 'monthly') {
+        monthRow.style.display = 'block';
+        buildSalesMonthSelect();
+    } else {
+        monthRow.style.display = 'none';
+        dayRow.style.display = 'none';
+    }
+    loadSalesData();
+}
+
+function buildSalesMonthSelect() {
+    const sel = document.getElementById('salesMonth');
+    // 伝票から存在する年月を収集
+    const monthSet = new Set();
+    appData.invoices.forEach(i => {
+        const d = new Date(i.completedAt || i.createdAt);
+        monthSet.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    });
+    const months = [...monthSet].sort().reverse();
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    sel.innerHTML = months.length
+        ? months.map(m => {
+            const [y, mo] = m.split('-');
+            return `<option value="${m}" ${m===thisMonth?'selected':''}>${y}年${parseInt(mo)}月</option>`;
+          }).join('')
+        : '<option value="">データなし</option>';
+    onSalesMonthChange();
+}
+
+function onSalesMonthChange() {
+    const month = document.getElementById('salesMonth').value;
+    const dayRow = document.getElementById('salesDayRow');
+    if (!month) { dayRow.style.display = 'none'; return; }
+
+    // その月の営業日を収集
+    const [y, mo] = month.split('-').map(Number);
+    const daySet = new Set();
+    appData.invoices.forEach(i => {
+        const d = new Date(i.completedAt || i.createdAt);
+        if (d.getFullYear() === y && d.getMonth()+1 === mo) {
+            daySet.add(d.toISOString().split('T')[0]);
+        }
+    });
+    const days = [...daySet].sort().reverse();
+    const sel = document.getElementById('salesDay');
+    sel.innerHTML = '<option value="">── 月全体の集計を表示</option>'
+        + days.map(d => {
+            const dt = new Date(d);
+            return `<option value="${d}">${dt.getMonth()+1}月${dt.getDate()}日（${['日','月','火','水','木','金','土'][dt.getDay()]}）</option>`;
+          }).join('');
+    dayRow.style.display = 'block';
+    loadSalesData();
+}
+
 function loadSalesData() {
     const period = document.getElementById('salesPeriod').value;
     const type = document.getElementById('salesType').value;
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    const filterDate = period === 'today'
-        ? d => d.split('T')[0] === today
-        : d => { const dt = new Date(d); return dt.getFullYear()===now.getFullYear()&&dt.getMonth()===now.getMonth(); };
+
+    let filterDate;
+    let periodLabel = '';
+
+    if (period === 'today') {
+        filterDate = d => d.split('T')[0] === today;
+        periodLabel = '本日';
+    } else if (period === 'month') {
+        filterDate = d => {
+            const dt = new Date(d);
+            return dt.getFullYear()===now.getFullYear() && dt.getMonth()===now.getMonth();
+        };
+        periodLabel = `${now.getMonth()+1}月`;
+    } else if (period === 'monthly') {
+        const month = document.getElementById('salesMonth')?.value;
+        const selectedDay = document.getElementById('salesDay')?.value;
+        if (!month) { filterDate = () => false; }
+        else if (selectedDay) {
+            // 特定の日
+            filterDate = d => d.split('T')[0] === selectedDay;
+            const dt = new Date(selectedDay);
+            periodLabel = `${dt.getMonth()+1}月${dt.getDate()}日`;
+        } else {
+            // 月全体
+            const [y, mo] = month.split('-').map(Number);
+            filterDate = d => {
+                const dt = new Date(d);
+                return dt.getFullYear()===y && dt.getMonth()+1===mo;
+            };
+            periodLabel = `${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`;
+        }
+    }
+
     const invs = appData.invoices.filter(i => filterDate(i.completedAt || i.createdAt));
-    if (type === 'total') renderTotalSales(invs);
+    if (type === 'total') renderTotalSales(invs, periodLabel);
     else if (type === 'customer') renderCustomerSales(invs);
     else if (type === 'cast') renderCastSales(invs);
     else if (type === 'cross') renderCrossTable(invs);
 }
 
-function renderTotalSales(invs) {
+function renderTotalSales(invs, periodLabel) {
     const total = invs.reduce((s,i)=>s+i.total,0);
     const dc = invs.reduce((s,i)=>s+i.drinks.reduce((ss,d)=>ss+d.count,0),0);
     const cuSet = new Set(invs.map(i=>i.customerId)).size;
-    document.getElementById('salesSummary').innerHTML = `<div class="stat-grid">
+    const labelHtml = periodLabel ? `<div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">📅 ${periodLabel}の売上</div>` : '';
+    document.getElementById('salesSummary').innerHTML = labelHtml + `<div class="stat-grid">
         <div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${total.toLocaleString()}</div></div>
         <div class="stat-card"><div class="stat-label">伝票数</div><div class="stat-value">${invs.length}件</div></div>
         <div class="stat-card"><div class="stat-label">来店客数</div><div class="stat-value">${cuSet}名</div></div>
