@@ -569,11 +569,11 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label class="form-label">開始時刻</label>
-                                <input type="time" id="quickWorkStart" class="form-control" step="1800">
+                                <select id="quickWorkStart" class="form-control"></select>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">終了時刻</label>
-                                <input type="time" id="quickWorkEnd" class="form-control" step="1800">
+                                <select id="quickWorkEnd" class="form-control"></select>
                             </div>
                         </div>
                         <div class="form-group">
@@ -581,6 +581,21 @@
                             <select id="quickWorkDohan" class="form-control">
                                 <option value="0">なし</option>
                                 <option value="1">あり</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">送迎代（この日のみ）</label>
+                            <select id="quickWorkTransport" class="form-control">
+                                <option value="-1">キャスト設定の送迎代を使用</option>
+                                <option value="0">なし (¥0)</option>
+                                <option value="500">¥500</option>
+                                <option value="1000">¥1,000</option>
+                                <option value="1500">¥1,500</option>
+                                <option value="2000">¥2,000</option>
+                                <option value="2500">¥2,500</option>
+                                <option value="3000">¥3,000</option>
+                                <option value="4000">¥4,000</option>
+                                <option value="5000">¥5,000</option>
                             </select>
                         </div>
                         <button class="btn btn-primary btn-block" onclick="saveQuickWorkTime()">💾 勤務時間を登録</button>
@@ -1631,7 +1646,57 @@ function renderCompletedInvoices() {
 }
 
 // ── 給料計算 ────────────────────────────────────────
-function renderSalarySection() { renderCastSelects(); }
+function renderSalarySection() {
+    renderCastSelects();
+    buildTimeSelects();
+}
+
+function buildTimeSelects() {
+    const startSel = document.getElementById('quickWorkStart');
+    const endSel = document.getElementById('quickWorkEnd');
+    if (!startSel) return;
+
+    // 通常時刻（00:00〜23:30）
+    const slots = [];
+    for (let h = 0; h < 24; h++) {
+        for (let m of [0, 30]) {
+            const hh = String(h).padStart(2, '0');
+            const mm = String(m).padStart(2, '0');
+            slots.push({ label: hh + ':' + mm, value: hh + ':' + mm });
+        }
+    }
+    // 翌時刻（翌00:00〜翌06:30）→ 値は同じ時刻文字列、save時に+1日で対応
+    const lateSlots = [];
+    for (let h = 0; h <= 6; h++) {
+        for (let m of [0, 30]) {
+            const hh = String(h).padStart(2, '0');
+            const mm = String(m).padStart(2, '0');
+            lateSlots.push({ label: '翌' + hh + ':' + mm, value: hh + ':' + mm });
+        }
+    }
+
+    function fillSelect(sel, includeLate) {
+        sel.innerHTML = '<option value="">選択してください</option>';
+        slots.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.value; opt.textContent = s.label;
+            sel.appendChild(opt);
+        });
+        if (includeLate) {
+            const grp = document.createElement('optgroup');
+            grp.label = '── 翌日 ──';
+            lateSlots.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.value; opt.textContent = s.label;
+                grp.appendChild(opt);
+            });
+            sel.appendChild(grp);
+        }
+    }
+
+    fillSelect(startSel, false);
+    fillSelect(endSel, true);
+}
 
 async function saveQuickWorkTime() {
     const castId = document.getElementById('salaryCast').value;
@@ -1639,17 +1704,20 @@ async function saveQuickWorkTime() {
     const start = document.getElementById('quickWorkStart').value;
     const end = document.getElementById('quickWorkEnd').value;
     const dohan = parseInt(document.getElementById('quickWorkDohan').value);
+    const transportOverride = parseInt(document.getElementById('quickWorkTransport').value);
     if (!castId || !date || !start || !end) { alert('全ての項目を入力してください'); return; }
     let st = new Date(`${date}T${start}`), et = new Date(`${date}T${end}`);
     if (et <= st) et.setDate(et.getDate() + 1);
     const hrs = Math.round((et - st) / (1000*60*60) * 2) / 2;
     showLoading(true);
-    appData.workTimes.push({ id: Date.now().toString(), castId, date, start, end, hours: hrs, dohan });
+    // transportOverride=-1 はキャスト設定の送迎代を使用、それ以外はその日の個別指定
+    appData.workTimes.push({ id: Date.now().toString(), castId, date, start, end, hours: hrs, dohan, transportOverride });
     await saveData();
     showLoading(false);
     document.getElementById('quickWorkStart').value = '';
     document.getElementById('quickWorkEnd').value = '';
     document.getElementById('quickWorkDohan').value = '0';
+    document.getElementById('quickWorkTransport').value = '-1';
     loadCastSalaryData();
     alert('勤務時間を登録しました！');
 }
@@ -1661,6 +1729,7 @@ function loadCastSalaryData() {
     const wti = document.getElementById('workTimeInput');
     if (!castId) { c.innerHTML = ''; wti.style.display = 'none'; return; }
     wti.style.display = 'block';
+    buildTimeSelects();
     document.getElementById('quickWorkDate').value = new Date().toISOString().split('T')[0];
     const cast = appData.casts.find(x => x.id === castId);
     if (!cast) return;
@@ -1676,7 +1745,12 @@ function loadCastSalaryData() {
     const dohanCnt = wts.filter(w => w.dohan===1).length;
     const hourlyPay = totalHours * cast.hourly;
     const dohanPay = dohanCnt * cast.dohanBack;
-    const transportPay = wts.length * cast.transport;
+    const transportPay = wts.reduce((s, w) => {
+        const t = (w.transportOverride !== undefined && w.transportOverride >= 0)
+            ? w.transportOverride
+            : cast.transport;
+        return s + t;
+    }, 0);
 
     const invs = appData.invoices.filter(i => filterDate(i.completedAt || i.createdAt));
     let drinkBacks = {}, drinkBackTotal = 0;
@@ -1712,7 +1786,11 @@ function loadCastSalaryData() {
                 return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${type}</div><span class="badge badge-success">¥${Math.round(data.amount).toLocaleString()}</span></div><div class="list-item-meta">${data.count}杯 × ${bi}</div></div>`;
             }).join('')}</div>` : ''}
         ${wts.length ? `<div style="margin-top:20px;"><h4 style="margin-bottom:10px;color:var(--primary);">勤務履歴</h4>
-            ${wts.map(w => `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${new Date(w.date).toLocaleDateString('ja-JP')}</div><span class="badge badge-primary">${w.hours}時間</span></div><div class="list-item-meta">${w.start} ～ ${w.end}${w.dohan?' / 同伴あり':''}</div></div>`).join('')}</div>` : ''}
+            ${wts.map(w => {
+                const tAmt = (w.transportOverride !== undefined && w.transportOverride >= 0) ? w.transportOverride : cast.transport;
+                const tText = tAmt > 0 ? ` / 送迎 ¥${tAmt.toLocaleString()}` : '';
+                return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${new Date(w.date).toLocaleDateString('ja-JP')}</div><span class="badge badge-primary">${w.hours}時間</span></div><div class="list-item-meta">${w.start} ～ ${w.end}${w.dohan?' / 同伴あり':''}${tText}</div></div>`;
+            }).join('')}</div>` : ''}
     `;
 }
 
@@ -1790,64 +1868,63 @@ function renderCrossTable(invs) {
     if (!invs.length) {
         document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>売上データがありません</div></div>'; return;
     }
+
+    // キャストへのドリンク代のみで集計（セット料金は含まない）
     const crossData = {};
     invs.forEach(inv => {
         const cuId = inv.customerId;
         if (!cuId) return;
         if (!crossData[cuId]) crossData[cuId] = {};
-        const castDrinkMap = {};
         inv.drinks.forEach(d => {
-            if (d.castId) castDrinkMap[d.castId] = (castDrinkMap[d.castId] || 0) + d.price * d.count;
+            if (!d.castId) return;
+            const amt = d.price * d.count;
+            crossData[cuId][d.castId] = (crossData[cuId][d.castId] || 0) + amt;
         });
-        const drinksTotalAll = inv.drinks.reduce((s,d)=>s+d.price*d.count,0);
-        const baseCost = inv.total - drinksTotalAll;
-        const castIds = Object.keys(castDrinkMap);
-        if (!castIds.length) {
-            crossData[cuId]['__none__'] = (crossData[cuId]['__none__'] || 0) + inv.total;
-        } else {
-            const basePer = Math.round(baseCost / castIds.length);
-            castIds.forEach(cid => {
-                crossData[cuId][cid] = (crossData[cuId][cid] || 0) + basePer + castDrinkMap[cid];
-            });
-        }
     });
+
+    // 登場したキャストIDを収集
     const castIdSet = new Set();
     Object.values(crossData).forEach(row => Object.keys(row).forEach(k => castIdSet.add(k)));
-    const castIds = [...castIdSet].filter(k => k !== '__none__');
-    const hasNone = [...castIdSet].includes('__none__');
+    const castIds = [...castIdSet];
+
+    // 売上降順で顧客を並べる
     const customerIds = Object.keys(crossData).sort((a,b) => {
         const ta = Object.values(crossData[a]).reduce((s,v)=>s+v,0);
         const tb = Object.values(crossData[b]).reduce((s,v)=>s+v,0);
         return tb - ta;
     });
+
+    if (!castIds.length || !customerIds.length) {
+        document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>キャストへのドリンクデータがありません</div></div>'; return;
+    }
+
     const castNames = castIds.map(id => appData.casts.find(c=>c.id===id)?.name || '不明');
-    let html = `<div style="margin-top:10px;font-size:12px;color:var(--text-dim);margin-bottom:8px;">※ セット料金はキャスト数で均等割り</div>
+    let html = `<div style="margin-top:10px;font-size:12px;color:var(--text-dim);margin-bottom:8px;">※ キャストへのドリンク代のみ集計（セット料金除く）</div>
     <div class="cross-table-wrap"><table class="cross-table">
-        <thead><tr><th>顧客</th>${castNames.map(n=>`<th>${n}</th>`).join('')}${hasNone?'<th>-</th>':''}
+        <thead><tr><th>顧客</th>${castNames.map(n=>`<th>${n}</th>`).join('')}
         <th style="color:var(--warning);">合計</th></tr></thead><tbody>`;
+
     customerIds.forEach(cuId => {
         const cu = appData.customers.find(c=>c.id===cuId);
         const row = crossData[cuId];
         const rowTotal = Object.values(row).reduce((s,v)=>s+v,0);
+        if (rowTotal === 0) return;
         html += `<tr><td>${cu?.name||'不明'}</td>`;
         castIds.forEach(cid => {
             const v = row[cid] || 0;
             html += `<td class="${v===0?'zero':''}">${v===0?'-':'¥'+v.toLocaleString()}</td>`;
         });
-        if (hasNone) html += `<td class="${(row['__none__']||0)===0?'zero':''}">${(row['__none__']||0)===0?'-':'¥'+(row['__none__']||0).toLocaleString()}</td>`;
         html += `<td style="color:var(--warning);font-weight:700;">¥${rowTotal.toLocaleString()}</td></tr>`;
     });
+
+    // 合計行
     html += `<tr class="total-row"><td>合計</td>`;
     castIds.forEach(cid => {
         const v = customerIds.reduce((s,cuId)=>s+(crossData[cuId][cid]||0),0);
         html += `<td>¥${v.toLocaleString()}</td>`;
     });
-    if (hasNone) {
-        const v = customerIds.reduce((s,cuId)=>s+(crossData[cuId]['__none__']||0),0);
-        html += `<td>¥${v.toLocaleString()}</td>`;
-    }
-    const grandTotal = invs.reduce((s,i)=>s+i.total,0);
-    html += `<td>¥${grandTotal.toLocaleString()}</td></tr>`;
+    const drinkGrandTotal = customerIds.reduce((s,cuId)=>s+Object.values(crossData[cuId]).reduce((ss,v)=>ss+v,0),0);
+    html += `<td>¥${drinkGrandTotal.toLocaleString()}</td></tr>`;
     html += '</tbody></table></div>';
     document.getElementById('salesDetails').innerHTML = html;
 }
