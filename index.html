@@ -399,6 +399,47 @@
             color: var(--secondary);
         }
         @media (max-width: 480px) { .stat-grid { grid-template-columns: 1fr; } }
+        /* カウンター */
+        .counter-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            background: var(--dark-lighter);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            height: 46px;
+        }
+        .counter-btn {
+            width: 46px;
+            height: 46px;
+            background: var(--dark-card);
+            border: none;
+            color: var(--text);
+            font-size: 22px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .counter-btn:active { background: var(--primary); color: white; }
+        .counter-btn.minus:active { background: var(--border); }
+        .counter-val {
+            flex: 1;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+            pointer-events: none;
+            min-width: 32px;
+        }
+        .counter-wrap.drink-counter { border-color: var(--secondary); }
+        .counter-wrap.drink-counter .counter-btn { background: rgba(0,204,255,0.08); }
+        .counter-wrap.drink-counter .counter-btn:active { background: var(--secondary); color: var(--dark); }
     </style>
 </head>
 <body>
@@ -715,7 +756,15 @@
             </div>
             <div class="form-group">
                 <label class="form-label">カラオケ曲数</label>
-                <input type="number" id="editInvoiceKaraoke" class="form-control" value="0" min="0" onchange="calculateEditInvoice()">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div class="counter-wrap" style="flex:1;">
+                        <button class="counter-btn minus" onclick="changeKaraoke(-1)">－</button>
+                        <div class="counter-val" id="editInvoiceKaraokeVal">0</div>
+                        <button class="counter-btn" onclick="changeKaraoke(1)">＋</button>
+                    </div>
+                    <input type="hidden" id="editInvoiceKaraoke" value="0">
+                    <div style="font-size:13px;color:var(--text-dim);white-space:nowrap;">×¥200</div>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">ドリンク</label>
@@ -1216,7 +1265,9 @@ function openInvoiceModal(inv, isCompleted) {
     document.getElementById('editInvoicePeople').value = inv.people || 1;
     document.getElementById('editInvoiceSeat').value = inv.seatPrice || 0;
     document.getElementById('editInvoiceExtension').value = inv.extension || 0;
-    document.getElementById('editInvoiceKaraoke').value = inv.karaoke || 0;
+    const karaokeVal = inv.karaoke || 0;
+    document.getElementById('editInvoiceKaraoke').value = karaokeVal;
+    document.getElementById('editInvoiceKaraokeVal').textContent = karaokeVal;
     currentBoxNum = inv.boxNum || null;
     handleSeatChange();
     const dc = document.getElementById('editInvoiceDrinks');
@@ -1281,9 +1332,14 @@ function addEditInvoiceDrink(existingDrink = null) {
                     <option value="">選択</option>
                 </select>
             </div>
-            <div class="form-group" style="flex:1;">
+            <div class="form-group" style="flex:1.2;">
                 <label class="form-label">杯数</label>
-                <input type="number" class="form-control drink-count" value="${existingDrink?existingDrink.count:1}" min="1" onchange="updateDrinkLabel(this);calculateEditInvoice()">
+                <div class="counter-wrap drink-counter">
+                    <button class="counter-btn minus" onclick="changeDrinkCount(this,-1)">－</button>
+                    <div class="counter-val drink-count-val">1</div>
+                    <button class="counter-btn" onclick="changeDrinkCount(this,1)">＋</button>
+                </div>
+                <input type="hidden" class="drink-count" value="${existingDrink?existingDrink.count:1}">
             </div>
         </div>
     `;
@@ -1296,6 +1352,10 @@ function addEditInvoiceDrink(existingDrink = null) {
         updateDrinkOptions(pts);
         const ds = item.querySelector('.drink-type');
         ds.value = existingDrink.drinkId || '';
+        // カウンター表示を既存の杯数で初期化
+        const countVal = existingDrink.count || 1;
+        item.querySelector('.drink-count').value = countVal;
+        item.querySelector('.drink-count-val').textContent = countVal;
     }
     calculateEditInvoice();
 }
@@ -1352,6 +1412,29 @@ function updateDrinkLabel(el) {
         const n = Array.from(item.parentElement.children).indexOf(item) + 1;
         lbl.textContent = `ドリンク ${n}`;
     }
+}
+
+// ── カウンター操作 ──────────────────────────────────
+function changeKaraoke(delta) {
+    const hidden = document.getElementById('editInvoiceKaraoke');
+    const disp = document.getElementById('editInvoiceKaraokeVal');
+    let val = parseInt(hidden.value) || 0;
+    val = Math.max(0, val + delta);
+    hidden.value = val;
+    disp.textContent = val;
+    calculateEditInvoice();
+}
+
+function changeDrinkCount(btn, delta) {
+    const item = btn.closest('.drink-item');
+    const hidden = item.querySelector('.drink-count');
+    const disp = item.querySelector('.drink-count-val');
+    let val = parseInt(hidden.value) || 1;
+    val = Math.max(1, val + delta);
+    hidden.value = val;
+    disp.textContent = val;
+    updateDrinkLabel(btn);
+    calculateEditInvoice();
 }
 
 function roundUpTo50(n) { return Math.ceil(n / 50) * 50; }
