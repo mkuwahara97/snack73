@@ -778,19 +778,9 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">送迎代（この日のみ）</label>
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                                <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-dim);cursor:pointer;white-space:nowrap;">
-                                    <input type="checkbox" id="quickWorkTransportDefault" checked
-                                        onchange="toggleQuickTransportInput(this)"
-                                        style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer;">
-                                    キャスト設定を使用
-                                </label>
-                            </div>
-                            <div id="quickWorkTransportInputWrap" style="display:none;">
-                                <input type="number" id="quickWorkTransportAmount" class="form-control"
-                                    placeholder="金額を入力（例: 1500）" min="0" step="100">
-                            </div>
-                            <input type="hidden" id="quickWorkTransport" value="-1">
+                            <input type="number" id="quickWorkTransportAmount" class="form-control"
+                                placeholder="空欄 = キャスト設定を使用" min="0" step="100">
+                            <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">金額を入力するとその日だけ上書きされます</div>
                         </div>
                         <button class="btn btn-primary btn-block" onclick="saveQuickWorkTime()">💾 勤務時間を登録</button>
                     </div>
@@ -1144,19 +1134,9 @@
             </div>
             <div class="form-group">
                 <label class="form-label">送迎代</label>
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-dim);cursor:pointer;white-space:nowrap;">
-                        <input type="checkbox" id="editWorkTransportDefault"
-                            onchange="toggleEditTransportInput(this)"
-                            style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer;">
-                        キャスト設定を使用
-                    </label>
-                </div>
-                <div id="editWorkTransportInputWrap">
-                    <input type="number" id="editWorkTransportAmount" class="form-control"
-                        placeholder="金額を入力（例: 1500）" min="0" step="100">
-                </div>
-                <input type="hidden" id="editWorkTransport" value="-1">
+                <input type="number" id="editWorkTransportAmount" class="form-control"
+                    placeholder="空欄 = キャスト設定を使用" min="0" step="100">
+                <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">金額を入力するとその日だけ上書きされます</div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
                 <button class="btn btn-danger" onclick="deleteWorkTime()">🗑️ 削除</button>
@@ -2310,13 +2290,8 @@ function openEditWorkTime(workId) {
     document.getElementById('editWorkStart').value = w.start;
     document.getElementById('editWorkEnd').value = w.end;
     document.getElementById('editWorkDohan').value = w.dohan || 0;
-    // 送迎代UI設定
-    const tVal = (w.transportOverride !== undefined) ? w.transportOverride : -1;
-    const useDefault = tVal === -1;
-    const chk = document.getElementById('editWorkTransportDefault');
-    chk.checked = useDefault;
-    toggleEditTransportInput(chk);
-    if (!useDefault) document.getElementById('editWorkTransportAmount').value = tVal;
+    const tVal = (w.transportOverride !== undefined && w.transportOverride >= 0) ? w.transportOverride : '';
+    document.getElementById('editWorkTransportAmount').value = tVal;
     openModal('editWorkTimeModal');
 }
 function buildEditWorkTimeSelects() {
@@ -2410,9 +2385,6 @@ async function saveQuickWorkTime() {
     document.getElementById('quickWorkStart').value = '';
     document.getElementById('quickWorkEnd').value = '';
     document.getElementById('quickWorkDohan').value = '0';
-    // 送迎代リセット
-    document.getElementById('quickWorkTransportDefault').checked = true;
-    toggleQuickTransportInput(document.getElementById('quickWorkTransportDefault'));
     document.getElementById('quickWorkTransportAmount').value = '';
     loadCastSalaryData();
     alert('勤務時間を登録しました！');
@@ -2866,27 +2838,18 @@ function printReceipt(invoiceId) {
 }
 
 // ── 送迎代UIヘルパー ─────────────────────────────────────
-function toggleQuickTransportInput(checkbox) {
-    const wrap = document.getElementById('quickWorkTransportInputWrap');
-    wrap.style.display = checkbox.checked ? 'none' : 'block';
-    document.getElementById('quickWorkTransport').value = checkbox.checked ? '-1' : '0';
-}
+
 
 function getQuickWorkTransportValue() {
-    const chk = document.getElementById('quickWorkTransportDefault');
-    if (chk.checked) return -1;
-    return parseInt(document.getElementById('quickWorkTransportAmount').value) || 0;
+    const val = document.getElementById('quickWorkTransportAmount').value;
+    return val === '' ? -1 : (parseInt(val) || 0);
 }
 
-function toggleEditTransportInput(checkbox) {
-    const wrap = document.getElementById('editWorkTransportInputWrap');
-    wrap.style.display = checkbox.checked ? 'none' : 'block';
-}
+
 
 function getEditWorkTransportValue() {
-    const chk = document.getElementById('editWorkTransportDefault');
-    if (chk.checked) return -1;
-    return parseInt(document.getElementById('editWorkTransportAmount').value) || 0;
+    const val = document.getElementById('editWorkTransportAmount').value;
+    return val === '' ? -1 : (parseInt(val) || 0);
 }
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
