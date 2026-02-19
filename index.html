@@ -778,18 +778,19 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">送迎代（この日のみ）</label>
-                            <select id="quickWorkTransport" class="form-control">
-                                <option value="-1">キャスト設定の送迎代を使用</option>
-                                <option value="0">なし (¥0)</option>
-                                <option value="500">¥500</option>
-                                <option value="1000">¥1,000</option>
-                                <option value="1500">¥1,500</option>
-                                <option value="2000">¥2,000</option>
-                                <option value="2500">¥2,500</option>
-                                <option value="3000">¥3,000</option>
-                                <option value="4000">¥4,000</option>
-                                <option value="5000">¥5,000</option>
-                            </select>
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                                <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-dim);cursor:pointer;white-space:nowrap;">
+                                    <input type="checkbox" id="quickWorkTransportDefault" checked
+                                        onchange="toggleQuickTransportInput(this)"
+                                        style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer;">
+                                    キャスト設定を使用
+                                </label>
+                            </div>
+                            <div id="quickWorkTransportInputWrap" style="display:none;">
+                                <input type="number" id="quickWorkTransportAmount" class="form-control"
+                                    placeholder="金額を入力（例: 1500）" min="0" step="100">
+                            </div>
+                            <input type="hidden" id="quickWorkTransport" value="-1">
                         </div>
                         <button class="btn btn-primary btn-block" onclick="saveQuickWorkTime()">💾 勤務時間を登録</button>
                     </div>
@@ -1143,18 +1144,19 @@
             </div>
             <div class="form-group">
                 <label class="form-label">送迎代</label>
-                <select id="editWorkTransport" class="form-control">
-                    <option value="-1">キャスト設定を使用</option>
-                    <option value="0">なし (¥0)</option>
-                    <option value="500">¥500</option>
-                    <option value="1000">¥1,000</option>
-                    <option value="1500">¥1,500</option>
-                    <option value="2000">¥2,000</option>
-                    <option value="2500">¥2,500</option>
-                    <option value="3000">¥3,000</option>
-                    <option value="4000">¥4,000</option>
-                    <option value="5000">¥5,000</option>
-                </select>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-dim);cursor:pointer;white-space:nowrap;">
+                        <input type="checkbox" id="editWorkTransportDefault"
+                            onchange="toggleEditTransportInput(this)"
+                            style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer;">
+                        キャスト設定を使用
+                    </label>
+                </div>
+                <div id="editWorkTransportInputWrap">
+                    <input type="number" id="editWorkTransportAmount" class="form-control"
+                        placeholder="金額を入力（例: 1500）" min="0" step="100">
+                </div>
+                <input type="hidden" id="editWorkTransport" value="-1">
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
                 <button class="btn btn-danger" onclick="deleteWorkTime()">🗑️ 削除</button>
@@ -2308,8 +2310,13 @@ function openEditWorkTime(workId) {
     document.getElementById('editWorkStart').value = w.start;
     document.getElementById('editWorkEnd').value = w.end;
     document.getElementById('editWorkDohan').value = w.dohan || 0;
-    document.getElementById('editWorkTransport').value =
-        (w.transportOverride !== undefined) ? w.transportOverride : -1;
+    // 送迎代UI設定
+    const tVal = (w.transportOverride !== undefined) ? w.transportOverride : -1;
+    const useDefault = tVal === -1;
+    const chk = document.getElementById('editWorkTransportDefault');
+    chk.checked = useDefault;
+    toggleEditTransportInput(chk);
+    if (!useDefault) document.getElementById('editWorkTransportAmount').value = tVal;
     openModal('editWorkTimeModal');
 }
 function buildEditWorkTimeSelects() {
@@ -2358,7 +2365,7 @@ async function saveEditWorkTime() {
     const start = document.getElementById('editWorkStart').value;
     const end = document.getElementById('editWorkEnd').value;
     const dohan = parseInt(document.getElementById('editWorkDohan').value);
-    const transportOverride = parseInt(document.getElementById('editWorkTransport').value);
+    const transportOverride = getEditWorkTransportValue();
     if (!date || !start || !end) { alert('日付と時刻を入力してください'); return; }
     const idx = appData.workTimes.findIndex(x => x.id === id);
     if (idx === -1) return;
@@ -2391,7 +2398,7 @@ async function saveQuickWorkTime() {
     const start = document.getElementById('quickWorkStart').value;
     const end = document.getElementById('quickWorkEnd').value;
     const dohan = parseInt(document.getElementById('quickWorkDohan').value);
-    const transportOverride = parseInt(document.getElementById('quickWorkTransport').value);
+    const transportOverride = getQuickWorkTransportValue();
     if (!castId || !date || !start || !end) { alert('全ての項目を入力してください'); return; }
     let st = new Date(`${date}T${start}`), et = new Date(`${date}T${end}`);
     if (et <= st) et.setDate(et.getDate() + 1);
@@ -2403,7 +2410,10 @@ async function saveQuickWorkTime() {
     document.getElementById('quickWorkStart').value = '';
     document.getElementById('quickWorkEnd').value = '';
     document.getElementById('quickWorkDohan').value = '0';
-    document.getElementById('quickWorkTransport').value = '-1';
+    // 送迎代リセット
+    document.getElementById('quickWorkTransportDefault').checked = true;
+    toggleQuickTransportInput(document.getElementById('quickWorkTransportDefault'));
+    document.getElementById('quickWorkTransportAmount').value = '';
     loadCastSalaryData();
     alert('勤務時間を登録しました！');
 }
@@ -2855,7 +2865,29 @@ function printReceipt(invoiceId) {
     window.print();
 }
 
-// ── 共通 ─────────────────────────────────────────────────
+// ── 送迎代UIヘルパー ─────────────────────────────────────
+function toggleQuickTransportInput(checkbox) {
+    const wrap = document.getElementById('quickWorkTransportInputWrap');
+    wrap.style.display = checkbox.checked ? 'none' : 'block';
+    document.getElementById('quickWorkTransport').value = checkbox.checked ? '-1' : '0';
+}
+
+function getQuickWorkTransportValue() {
+    const chk = document.getElementById('quickWorkTransportDefault');
+    if (chk.checked) return -1;
+    return parseInt(document.getElementById('quickWorkTransportAmount').value) || 0;
+}
+
+function toggleEditTransportInput(checkbox) {
+    const wrap = document.getElementById('editWorkTransportInputWrap');
+    wrap.style.display = checkbox.checked ? 'none' : 'block';
+}
+
+function getEditWorkTransportValue() {
+    const chk = document.getElementById('editWorkTransportDefault');
+    if (chk.checked) return -1;
+    return parseInt(document.getElementById('editWorkTransportAmount').value) || 0;
+}
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
