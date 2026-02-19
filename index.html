@@ -1653,18 +1653,18 @@ function calculateEditInvoice() {
         }
     });
 
-    // 税抜小計
-    const subtotalEx = roundUpTo50(totalSet + extPrice + karaokePrice + drinksTotal);
-    // 消費税 10%
+    // 税抜小計（端数丸めなし）
+    const subtotalEx = totalSet + extPrice + karaokePrice + drinksTotal;
+    // 消費税 10%（切り捨て）
     const tax = Math.floor(subtotalEx * 0.1);
     // 税込小計
     const subtotalInc = subtotalEx + tax;
 
     const paymentMethod = document.getElementById('editInvoicePaymentMethod').value;
     const isCard = paymentMethod === 'card';
-    // カード手数料は税込小計の10%
+    // カード手数料は税込小計の10%（切り捨て）
     const cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
-    // 合計を100円単位に切り上げ
+    // 合計を100円単位に切り上げ（ここだけで一括丸め）
     const total = Math.ceil((subtotalInc + cardFee) / 100) * 100;
 
     document.getElementById('editInvoiceSubtotalEx').textContent = `¥${subtotalEx.toLocaleString()}`;
