@@ -585,6 +585,7 @@
         <button class="nav-tab" onclick="switchTab('salary',this)">給料</button>
         <button class="nav-tab" onclick="switchTab('sales',this)">売上</button>
         <button class="nav-tab" onclick="switchTab('customer',this)">顧客</button>
+        <button class="nav-tab" onclick="switchTab('export',this)">出力</button>
     </div>
 
     <!-- 伝票 -->
@@ -866,7 +867,7 @@
         </div>
     </div>
 
-    <!-- 顧客管理 -->
+    <!-- ======= 顧客 ======= -->
     <div id="customer" class="section">
         <div class="content">
             <div class="card">
@@ -892,6 +893,68 @@
                 </div>
                 <div id="customerList"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- データ出力 -->
+    <div id="export" class="section">
+        <div class="content">
+
+            <!-- Power Query 連携 -->
+            <div class="card">
+                <div class="card-title">🔗 Power Query 自動連携</div>
+                <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;">
+                    ExcelのPower Queryを使うと、ボタン1つでFirebaseから最新データを自動取得・更新できます。
+                </div>
+
+                <div style="background:var(--dark-lighter);border-radius:8px;padding:16px;margin-bottom:16px;">
+                    <div style="font-size:13px;font-weight:700;color:var(--secondary);margin-bottom:10px;">📋 設定手順</div>
+                    <ol style="font-size:13px;color:var(--text-dim);line-height:2;padding-left:20px;">
+                        <li>Excelを開き「データ」タブ →「データの取得」→「その他のデータソース」→「空のクエリ」</li>
+                        <li>「詳細エディター」を開く</li>
+                        <li>下のコードをコピーして貼り付ける</li>
+                        <li>「完了」→「閉じて読み込む」</li>
+                        <li>以降は「すべて更新」ボタンで最新データに同期</li>
+                    </ol>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <div style="font-size:13px;font-weight:700;color:var(--primary);">売上・伝票クエリ</div>
+                        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="copyPQ('pq_invoices')">📋 コピー</button>
+                    </div>
+                    <textarea id="pq_invoices" class="form-control" rows="6" readonly style="font-size:11px;font-family:monospace;line-height:1.5;resize:none;"></textarea>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <div style="font-size:13px;font-weight:700;color:var(--primary);">顧客クエリ</div>
+                        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="copyPQ('pq_customers')">📋 コピー</button>
+                    </div>
+                    <textarea id="pq_customers" class="form-control" rows="6" readonly style="font-size:11px;font-family:monospace;line-height:1.5;resize:none;"></textarea>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <div style="font-size:13px;font-weight:700;color:var(--primary);">勤務・給料クエリ</div>
+                        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="copyPQ('pq_worktimes')">📋 コピー</button>
+                    </div>
+                    <textarea id="pq_worktimes" class="form-control" rows="6" readonly style="font-size:11px;font-family:monospace;line-height:1.5;resize:none;"></textarea>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <div style="font-size:13px;font-weight:700;color:var(--primary);">在庫クエリ</div>
+                        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="copyPQ('pq_inventory')">📋 コピー</button>
+                    </div>
+                    <textarea id="pq_inventory" class="form-control" rows="6" readonly style="font-size:11px;font-family:monospace;line-height:1.5;resize:none;"></textarea>
+                </div>
+
+                <div style="background:rgba(255,170,0,0.08);border:1px solid rgba(255,170,0,0.3);border-radius:8px;padding:12px;font-size:12px;color:var(--text-dim);">
+                    ⚠️ Power Queryは更新時にインターネット接続が必要です。「プライバシーレベル」を確認するダイアログが出た場合は「パブリック」を選択してください。
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -1228,7 +1291,6 @@ window._loadData = async function() {
         if (snap.exists()) {
             const saved = snap.data().payload ? JSON.parse(snap.data().payload) : {};
             appData = { activeInvoices: [], inventory: [], ...saved };
-            // 既存データに inventory がなければ初期化
             if (!appData.inventory) appData.inventory = [];
         }
     } catch(e) {
@@ -1289,9 +1351,10 @@ function switchTab(tabName, btn) {
     if (tabName === 'salary') renderSalarySection();
     if (tabName === 'sales') loadSalesData();
     if (tabName === 'customer') renderCustomerList();
+    if (tabName === 'export') renderExportTab();
 }
 
-// ── ドリンク設定 ────────────────────────────────────────
+// ── ドリンク設定 ──
 function toggleDrinkTypeFields() {
     const type = document.getElementById('drinkSettingType').value;
     document.getElementById('normalDrinkFields').style.display = type === 'ショット' ? 'none' : 'block';
@@ -1330,7 +1393,6 @@ async function deleteDrinkSetting(id) {
     if (!confirm('このドリンクを削除してもよろしいですか？')) return;
     showLoading(true);
     appData.drinkSettings = appData.drinkSettings.filter(d => d.id !== id);
-    // 在庫のリンクからも除去
     appData.inventory.forEach(item => {
         item.linkedDrinkIds = (item.linkedDrinkIds || []).filter(did => did !== id);
     });
@@ -1363,7 +1425,7 @@ function renderDrinkSettings() {
     c.innerHTML = html;
 }
 
-// ── 在庫管理 ────────────────────────────────────────────
+// ── 在庫管理 ──
 async function addInventoryItem() {
     const name = document.getElementById('invName').value.trim();
     const type = document.getElementById('invType').value;
@@ -1398,10 +1460,7 @@ function renderInvAlertBanner() {
     const lowItems = appData.inventory.filter(i => i.currentStock < i.minStock);
     const banner = document.getElementById('invAlertBanner');
     if (!banner) return;
-    if (!lowItems.length) {
-        banner.classList.remove('visible');
-        return;
-    }
+    if (!lowItems.length) { banner.classList.remove('visible'); return; }
     banner.classList.add('visible');
     document.getElementById('invAlertSubtitle').textContent = `${lowItems.length}件の在庫が必要本数を下回っています`;
     document.getElementById('invAlertItems').innerHTML = lowItems.map(item => {
@@ -1439,9 +1498,8 @@ function renderInventoryList() {
                 .filter(Boolean);
             const statusBadge = isLow
                 ? '<span class="badge badge-error">在庫不足</span>'
-                : isWarning
-                    ? '<span class="badge badge-warning">残り少ない</span>'
-                    : '<span class="badge badge-success">良好</span>';
+                : isWarning ? '<span class="badge badge-warning">残り少ない</span>'
+                : '<span class="badge badge-success">良好</span>';
             html += `<div class="list-item ${isLow ? 'low-stock' : ''}" onclick="openEditInventory('${item.id}')">
                 <div class="list-item-header">
                     <div style="display:flex;align-items:center;gap:8px;">
@@ -1479,8 +1537,7 @@ function renderInvLinkedDrinksSelect(selId) {
     if (!appData.drinkSettings.length) {
         const opt = document.createElement('option');
         opt.value = ''; opt.textContent = '（ドリンクが登録されていません）'; opt.disabled = true;
-        sel.appendChild(opt);
-        return;
+        sel.appendChild(opt); return;
     }
     const groups = ['カクテル','ショット','シャンパン','ビール','その他'];
     groups.forEach(g => {
@@ -1490,8 +1547,7 @@ function renderInvLinkedDrinksSelect(selId) {
         og.label = g;
         drinks.forEach(d => {
             const opt = document.createElement('option');
-            opt.value = d.id;
-            opt.textContent = d.name;
+            opt.value = d.id; opt.textContent = d.name;
             opt.selected = prevSelected.includes(d.id);
             og.appendChild(opt);
         });
@@ -1508,19 +1564,16 @@ function openEditInventory(itemId) {
     document.getElementById('editInvCurrentStock').value = item.currentStock;
     document.getElementById('editInvMinStock').value = item.minStock;
     document.getElementById('editInvReductionPerOrder').value = item.reductionPerOrder || 1;
-    // 紐づくドリンク（編集モーダル用）
     const sel = document.getElementById('editInvLinkedDrinks');
     sel.innerHTML = '';
     const groups = ['カクテル','ショット','シャンパン','ビール','その他'];
     groups.forEach(g => {
         const drinks = appData.drinkSettings.filter(d => d.type === g);
         if (!drinks.length) return;
-        const og = document.createElement('optgroup');
-        og.label = g;
+        const og = document.createElement('optgroup'); og.label = g;
         drinks.forEach(d => {
             const opt = document.createElement('option');
-            opt.value = d.id;
-            opt.textContent = d.name;
+            opt.value = d.id; opt.textContent = d.name;
             opt.selected = (item.linkedDrinkIds || []).includes(d.id);
             og.appendChild(opt);
         });
@@ -1538,20 +1591,15 @@ async function saveEditInventory() {
     const sel = document.getElementById('editInvLinkedDrinks');
     const linkedDrinkIds = Array.from(sel.selectedOptions).map(o => o.value);
     appData.inventory[idx] = {
-        ...appData.inventory[idx],
-        name,
+        ...appData.inventory[idx], name,
         type: document.getElementById('editInvType').value,
         currentStock: parseFloat(document.getElementById('editInvCurrentStock').value) || 0,
         minStock: parseFloat(document.getElementById('editInvMinStock').value) || 0,
         reductionPerOrder: parseFloat(document.getElementById('editInvReductionPerOrder').value) || 1,
         linkedDrinkIds
     };
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editInventoryModal');
-    renderInventory();
-    alert('在庫情報を更新しました！');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editInventoryModal'); renderInventory(); alert('在庫情報を更新しました！');
 }
 
 async function deleteInventoryItem() {
@@ -1559,15 +1607,10 @@ async function deleteInventoryItem() {
     const item = appData.inventory.find(i => i.id === id);
     if (!confirm(`「${item?.name}」を削除してもよろしいですか？`)) return;
     appData.inventory = appData.inventory.filter(i => i.id !== id);
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editInventoryModal');
-    renderInventory();
-    alert('削除しました');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editInventoryModal'); renderInventory(); alert('削除しました');
 }
 
-// 在庫削減（伝票確定時に呼び出す）
 function reduceInventoryFromInvoice(inv) {
     if (!appData.inventory || !appData.inventory.length) return;
     inv.drinks.forEach(d => {
@@ -1580,7 +1623,6 @@ function reduceInventoryFromInvoice(inv) {
     });
 }
 
-// 在庫不足をチェックしてアラートを返す
 function checkInventoryLowAlerts(inv) {
     if (!appData.inventory || !appData.inventory.length) return [];
     const lowItems = [];
@@ -1596,14 +1638,13 @@ function checkInventoryLowAlerts(inv) {
     return lowItems;
 }
 
-// ── キャスト ─────────────────────────────────────────────
+// ── キャスト ──
 async function addCast() {
     const name = document.getElementById('newCastName').value.trim();
     if (!name) { alert('キャスト名を入力してください'); return; }
     showLoading(true);
     appData.casts.push({
-        id: Date.now().toString(),
-        name,
+        id: Date.now().toString(), name,
         birthday: document.getElementById('newCastBirthday').value,
         hourly: parseInt(document.getElementById('newCastHourly').value) || 0,
         drinkBacks: {
@@ -1614,12 +1655,10 @@ async function addCast() {
         dohanBack: parseInt(document.getElementById('newCastDohanBack').value) || 0,
         transport: parseInt(document.getElementById('newCastTransport').value) || 0
     });
-    await saveData();
-    showLoading(false);
+    await saveData(); showLoading(false);
     ['newCastName','newCastBirthday','newCastHourly','newCastCocktailBack','newCastShotBack','newCastChampagneBackRate','newCastDohanBack','newCastTransport']
         .forEach(id => document.getElementById(id).value = '');
-    renderAll();
-    alert('キャストを追加しました！');
+    renderAll(); alert('キャストを追加しました！');
 }
 function renderCastList() {
     const c = document.getElementById('castList');
@@ -1640,7 +1679,6 @@ function renderCastList() {
         </div>`;
     }).join('');
 }
-
 function openEditCast(castId) {
     const cast = appData.casts.find(c => c.id === castId);
     if (!cast) return;
@@ -1662,8 +1700,7 @@ async function saveEditCast() {
     const idx = appData.casts.findIndex(c => c.id === castId);
     if (idx === -1) return;
     appData.casts[idx] = {
-        ...appData.casts[idx],
-        name,
+        ...appData.casts[idx], name,
         birthday: document.getElementById('editCastBirthday').value,
         hourly: parseInt(document.getElementById('editCastHourly').value) || 0,
         drinkBacks: {
@@ -1674,45 +1711,34 @@ async function saveEditCast() {
         dohanBack: parseInt(document.getElementById('editCastDohanBack').value) || 0,
         transport: parseInt(document.getElementById('editCastTransport').value) || 0
     };
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editCastModal');
-    renderAll();
-    alert('キャスト情報を更新しました！');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editCastModal'); renderAll(); alert('キャスト情報を更新しました！');
 }
 async function deleteCast() {
     const castId = document.getElementById('editCastId').value;
     const cast = appData.casts.find(c => c.id === castId);
     if (!confirm(`「${cast?.name}」を削除してもよろしいですか？`)) return;
     appData.casts = appData.casts.filter(c => c.id !== castId);
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editCastModal');
-    renderAll();
-    alert('削除しました');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editCastModal'); renderAll(); alert('削除しました');
 }
 
-// ── 顧客 ─────────────────────────────────────────────────
+// ── 顧客 ──
 async function addCustomer() {
     const name = document.getElementById('newCustomerName').value.trim();
     if (!name) { alert('顧客名を入力してください'); return; }
     showLoading(true);
     appData.customers.push({
-        id: Date.now().toString(),
-        name,
+        id: Date.now().toString(), name,
         birthday: document.getElementById('newCustomerBirthday').value,
         memo: document.getElementById('newCustomerMemo').value.trim(),
         createdAt: new Date().toISOString()
     });
-    await saveData();
-    showLoading(false);
+    await saveData(); showLoading(false);
     ['newCustomerName','newCustomerBirthday','newCustomerMemo'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
-    renderAll();
-    alert('顧客を追加しました！');
+    renderAll(); alert('顧客を追加しました！');
 }
 function renderCustomerList() {
     const c = document.getElementById('customerList');
@@ -1757,56 +1783,33 @@ async function saveEditCustomer() {
     const idx = appData.customers.findIndex(c => c.id === customerId);
     if (idx === -1) return;
     appData.customers[idx] = {
-        ...appData.customers[idx],
-        name,
+        ...appData.customers[idx], name,
         birthday: document.getElementById('editCustomerBirthday').value,
         memo: document.getElementById('editCustomerMemo').value.trim()
     };
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editCustomerModal');
-    renderAll();
-    alert('顧客情報を更新しました！');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editCustomerModal'); renderAll(); alert('顧客情報を更新しました！');
 }
 async function deleteCustomer() {
     const customerId = document.getElementById('editCustomerId').value;
     const cu = appData.customers.find(c => c.id === customerId);
     if (!confirm(`「${cu?.name}」を削除してもよろしいですか？`)) return;
     appData.customers = appData.customers.filter(c => c.id !== customerId);
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editCustomerModal');
-    renderAll();
-    alert('削除しました');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editCustomerModal'); renderAll(); alert('削除しました');
 }
 
-// ── 伝票 ─────────────────────────────────────────────────
+// ── 伝票 ──
 async function createNewInvoice() {
     const inv = {
-        id: Date.now().toString(),
-        customerId: '',
-        people: 1,
-        hasBottle: true,
-        setPrice: 3000,
-        seatPrice: 0,
-        boxNum: null,
-        extension: 0,
-        karaoke: 0,
-        drinks: [],
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        total: 0
+        id: Date.now().toString(), customerId: '', people: 1,
+        hasBottle: true, setPrice: 3000, seatPrice: 0, boxNum: null,
+        extension: 0, karaoke: 0, drinks: [], status: 'active',
+        createdAt: new Date().toISOString(), total: 0
     };
-    showLoading(true);
-    appData.activeInvoices.push(inv);
-    await saveData();
-    showLoading(false);
-    renderActiveInvoices();
-    editInvoice(inv.id);
+    showLoading(true); appData.activeInvoices.push(inv); await saveData(); showLoading(false);
+    renderActiveInvoices(); editInvoice(inv.id);
 }
-
 function editInvoice(invoiceId) {
     currentEditingInvoiceId = invoiceId;
     const inv = appData.activeInvoices.find(i => i.id === invoiceId);
@@ -1841,7 +1844,6 @@ function openInvoiceModal(inv, isCompleted) {
     calculateEditInvoice();
     openModal('invoiceModal');
 }
-
 function handleSeatChange() {
     const seatVal = document.getElementById('editInvoiceSeat').value;
     const boxRow = document.getElementById('boxNumRow');
@@ -1856,14 +1858,12 @@ function handleSeatChange() {
     }
     calculateEditInvoice();
 }
-
 function selectBoxNum(num) {
     currentBoxNum = (currentBoxNum === num) ? null : num;
     document.querySelectorAll('.box-num-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.num) === currentBoxNum);
     });
 }
-
 function addEditInvoiceDrink(existingDrink = null) {
     const container = document.getElementById('editInvoiceDrinks');
     const drinkNum = container.children.length + 1;
@@ -1923,7 +1923,6 @@ function addEditInvoiceDrink(existingDrink = null) {
     }
     calculateEditInvoice();
 }
-
 function updateDrinkOptions(personTypeSelect) {
     const item = personTypeSelect.closest('.drink-item');
     const drinkSelect = item.querySelector('.drink-type');
@@ -1934,8 +1933,7 @@ function updateDrinkOptions(personTypeSelect) {
     groups.forEach(g => {
         const drinks = appData.drinkSettings.filter(d => d.type === g && (d.target === 'both' || d.target === personType));
         if (!drinks.length) return;
-        const og = document.createElement('optgroup');
-        og.label = g;
+        const og = document.createElement('optgroup'); og.label = g;
         drinks.forEach(d => {
             const opt = document.createElement('option');
             opt.value = d.id;
@@ -1945,7 +1943,6 @@ function updateDrinkOptions(personTypeSelect) {
         drinkSelect.appendChild(og);
     });
 }
-
 function updatePersonOptions(personTypeSelect) {
     const item = personTypeSelect.closest('.drink-item');
     const ps = item.querySelector('.drink-person');
@@ -1957,7 +1954,6 @@ function updatePersonOptions(personTypeSelect) {
         appData.customers.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; ps.appendChild(o); });
     }
 }
-
 function updateDrinkLabel(el) {
     const item = el.closest('.drink-item');
     const pts = item.querySelector('.drink-person-type');
@@ -1977,31 +1973,24 @@ function updateDrinkLabel(el) {
         lbl.textContent = `ドリンク ${n}`;
     }
 }
-
 function changeKaraoke(delta) {
     const hidden = document.getElementById('editInvoiceKaraoke');
     const disp = document.getElementById('editInvoiceKaraokeVal');
     let val = parseInt(hidden.value) || 0;
     val = Math.max(0, val + delta);
-    hidden.value = val;
-    disp.textContent = val;
+    hidden.value = val; disp.textContent = val;
     calculateEditInvoice();
 }
-
 function changeDrinkCount(btn, delta) {
     const item = btn.closest('.drink-item');
     const hidden = item.querySelector('.drink-count');
     const disp = item.querySelector('.drink-count-val');
     let val = parseInt(hidden.value) || 1;
     val = Math.max(1, val + delta);
-    hidden.value = val;
-    disp.textContent = val;
-    updateDrinkLabel(btn);
-    calculateEditInvoice();
+    hidden.value = val; disp.textContent = val;
+    updateDrinkLabel(btn); calculateEditInvoice();
 }
-
 function roundUpTo50(n) { return Math.ceil(n / 50) * 50; }
-
 function calculateEditInvoice() {
     const setData = document.getElementById('editInvoiceSet').value.split('-');
     const setPrice = parseInt(setData[0]) || 0;
@@ -2014,7 +2003,6 @@ function calculateEditInvoice() {
     if (!hasBottle && ext > 0) extPrice = roundUpTo50((totalSet / 2) * ext);
     const karaoke = parseInt(document.getElementById('editInvoiceKaraoke').value) || 0;
     const karaokePrice = karaoke * 200;
-
     const kleinerByPerson = {}, processed = {};
     document.querySelectorAll('#editInvoiceDrinks .drink-item').forEach(item => {
         const dId = item.querySelector('.drink-type').value;
@@ -2028,7 +2016,6 @@ function calculateEditInvoice() {
             kleinerByPerson[key] = (kleinerByPerson[key] || 0) + cnt;
         }
     });
-
     let drinksTotal = 0;
     document.querySelectorAll('#editInvoiceDrinks .drink-item').forEach(item => {
         const dId = item.querySelector('.drink-type').value;
@@ -2049,7 +2036,6 @@ function calculateEditInvoice() {
             drinksTotal += d.price * cnt;
         }
     });
-
     const subtotalEx = totalSet + extPrice + karaokePrice + drinksTotal;
     const tax = Math.floor(subtotalEx * 0.1);
     const subtotalInc = subtotalEx + tax;
@@ -2057,7 +2043,6 @@ function calculateEditInvoice() {
     const isCard = paymentMethod === 'card';
     const cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
     const total = Math.ceil((subtotalInc + cardFee) / 100) * 100;
-
     document.getElementById('editInvoiceSubtotalEx').textContent = `¥${subtotalEx.toLocaleString()}`;
     document.getElementById('editInvoiceTax').textContent = `¥${tax.toLocaleString()}`;
     document.getElementById('editInvoiceSubtotal').textContent = `¥${subtotalInc.toLocaleString()}`;
@@ -2072,17 +2057,14 @@ function calculateEditInvoice() {
     document.getElementById('extensionGroup').style.display = hasBottle ? 'none' : 'block';
     if (hasBottle) document.getElementById('editInvoiceExtension').value = '0';
 }
-
 async function saveEditInvoice() {
     const invoiceId = currentEditingInvoiceId;
     let inv = appData.activeInvoices.find(i => i.id === invoiceId);
     let isCompleted = false;
     if (!inv) { inv = appData.invoices.find(i => i.id === invoiceId); isCompleted = true; }
     if (!inv) return;
-
     const setData = document.getElementById('editInvoiceSet').value.split('-');
-    inv.setPrice = parseInt(setData[0]);
-    inv.hasBottle = setData[1] === 'true';
+    inv.setPrice = parseInt(setData[0]); inv.hasBottle = setData[1] === 'true';
     inv.people = parseInt(document.getElementById('editInvoicePeople').value) || 1;
     inv.customerId = document.getElementById('editInvoiceCustomer').value;
     inv.seatPrice = parseInt(document.getElementById('editInvoiceSeat').value);
@@ -2093,26 +2075,19 @@ async function saveEditInvoice() {
     inv.drinks = collectDrinks();
     inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
     inv.subtotalEx = parseInt(document.getElementById('editInvoiceSubtotalEx').textContent.replace(/[^0-9]/g, ''));
-
-    showLoading(true);
-    await saveData();
-    showLoading(false);
+    showLoading(true); await saveData(); showLoading(false);
     closeModal('invoiceModal');
-    if (isCompleted) renderCompletedInvoices();
-    else renderActiveInvoices();
+    if (isCompleted) renderCompletedInvoices(); else renderActiveInvoices();
     alert('保存しました！');
 }
-
 async function completeInvoice() {
     const invoiceId = currentEditingInvoiceId;
     const idx = appData.activeInvoices.findIndex(i => i.id === invoiceId);
     if (idx === -1) { alert('この伝票は既に確定済みです'); return; }
     if (!document.getElementById('editInvoiceCustomer').value) { alert('顧客を選択してください'); return; }
-
     const inv = appData.activeInvoices[idx];
     const setData = document.getElementById('editInvoiceSet').value.split('-');
-    inv.setPrice = parseInt(setData[0]);
-    inv.hasBottle = setData[1] === 'true';
+    inv.setPrice = parseInt(setData[0]); inv.hasBottle = setData[1] === 'true';
     inv.people = parseInt(document.getElementById('editInvoicePeople').value) || 1;
     inv.customerId = document.getElementById('editInvoiceCustomer').value;
     inv.seatPrice = parseInt(document.getElementById('editInvoiceSeat').value);
@@ -2123,22 +2098,12 @@ async function completeInvoice() {
     inv.drinks = collectDrinks();
     inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
     inv.subtotalEx = parseInt(document.getElementById('editInvoiceSubtotalEx').textContent.replace(/[^0-9]/g, ''));
-    inv.status = 'completed';
-    inv.completedAt = new Date().toISOString();
-
-    // 在庫を自動削減
+    inv.status = 'completed'; inv.completedAt = new Date().toISOString();
     reduceInventoryFromInvoice(inv);
-
     appData.activeInvoices.splice(idx, 1);
     appData.invoices.push(inv);
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('invoiceModal');
-    renderActiveInvoices();
-    renderCompletedInvoices();
-
-    // 在庫不足チェック → アラート表示
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('invoiceModal'); renderActiveInvoices(); renderCompletedInvoices();
     const lowItems = checkInventoryLowAlerts(inv);
     let alertMsg = '伝票を確定しました！';
     if (lowItems.length) {
@@ -2148,11 +2113,8 @@ async function completeInvoice() {
     if (confirm(alertMsg + (lowItems.length ? '' : '\nレシートを印刷しますか？'))) {
         if (!lowItems.length) printReceipt(inv.id);
     }
-    if (lowItems.length && confirm('レシートを印刷しますか？')) {
-        printReceipt(inv.id);
-    }
+    if (lowItems.length && confirm('レシートを印刷しますか？')) printReceipt(inv.id);
 }
-
 function collectDrinks() {
     const drinks = [];
     document.querySelectorAll('#editInvoiceDrinks .drink-item').forEach(item => {
@@ -2165,13 +2127,11 @@ function collectDrinks() {
         if (!d) return;
         const rec = { drinkId: d.id, name: d.name, type: d.type, price: d.price, count: cnt };
         if (d.shotType) rec.shotType = d.shotType;
-        if (pType === 'cast') rec.castId = pId;
-        else rec.customerId = pId;
+        if (pType === 'cast') rec.castId = pId; else rec.customerId = pId;
         drinks.push(rec);
     });
     return drinks;
 }
-
 async function deleteInvoice() {
     if (!confirm('この伝票を削除してもよろしいですか？')) return;
     const id = currentEditingInvoiceId;
@@ -2188,7 +2148,6 @@ async function deleteInvoice() {
         closeModal('invoiceModal'); renderCompletedInvoices(); alert('削除しました');
     }
 }
-
 function renderActiveInvoices() {
     const c = document.getElementById('activeInvoices');
     if (!appData.activeInvoices.length) {
@@ -2208,7 +2167,6 @@ function renderActiveInvoices() {
         </div>`;
     }).join('');
 }
-
 function renderCompletedInvoices() {
     const c = document.getElementById('completedInvoices');
     const today = new Date().toISOString().split('T')[0];
@@ -2235,11 +2193,8 @@ function renderCompletedInvoices() {
     }).join('');
 }
 
-// ── 給料 ─────────────────────────────────────────────────
-function renderSalarySection() {
-    renderCastSelects();
-    buildTimeSelects();
-}
+// ── 給料 ──
+function renderSalarySection() { renderCastSelects(); buildTimeSelects(); }
 function buildTimeSelects() {
     const startSel = document.getElementById('quickWorkStart');
     const endSel = document.getElementById('quickWorkEnd');
@@ -2247,39 +2202,27 @@ function buildTimeSelects() {
     const slots = [];
     for (let h = 0; h < 24; h++) {
         for (let m of [0, 30]) {
-            const hh = String(h).padStart(2, '0');
-            const mm = String(m).padStart(2, '0');
-            slots.push({ label: hh + ':' + mm, value: hh + ':' + mm });
+            const hh = String(h).padStart(2,'0'), mm = String(m).padStart(2,'0');
+            slots.push({ label: hh+':'+mm, value: hh+':'+mm });
         }
     }
     const lateSlots = [];
     for (let h = 0; h <= 6; h++) {
         for (let m of [0, 30]) {
-            const hh = String(h).padStart(2, '0');
-            const mm = String(m).padStart(2, '0');
-            lateSlots.push({ label: '翌' + hh + ':' + mm, value: hh + ':' + mm });
+            const hh = String(h).padStart(2,'0'), mm = String(m).padStart(2,'0');
+            lateSlots.push({ label: '翌'+hh+':'+mm, value: hh+':'+mm });
         }
     }
     function fillSelect(sel, includeLate) {
         sel.innerHTML = '<option value="">選択してください</option>';
-        slots.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.value; opt.textContent = s.label;
-            sel.appendChild(opt);
-        });
+        slots.forEach(s => { const opt = document.createElement('option'); opt.value = s.value; opt.textContent = s.label; sel.appendChild(opt); });
         if (includeLate) {
-            const grp = document.createElement('optgroup');
-            grp.label = '── 翌日 ──';
-            lateSlots.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s.value; opt.textContent = s.label;
-                grp.appendChild(opt);
-            });
+            const grp = document.createElement('optgroup'); grp.label = '── 翌日 ──';
+            lateSlots.forEach(s => { const opt = document.createElement('option'); opt.value = s.value; opt.textContent = s.label; grp.appendChild(opt); });
             sel.appendChild(grp);
         }
     }
-    fillSelect(startSel, false);
-    fillSelect(endSel, true);
+    fillSelect(startSel, false); fillSelect(endSel, true);
 }
 function openEditWorkTime(workId) {
     const w = appData.workTimes.find(x => x.id === workId);
@@ -2300,39 +2243,27 @@ function buildEditWorkTimeSelects() {
     const slots = [];
     for (let h = 0; h < 24; h++) {
         for (let m of [0, 30]) {
-            const hh = String(h).padStart(2,'0');
-            const mm = String(m).padStart(2,'0');
-            slots.push(hh + ':' + mm);
+            const hh = String(h).padStart(2,'0'), mm = String(m).padStart(2,'0');
+            slots.push(hh+':'+mm);
         }
     }
     const lateSlots = [];
     for (let h = 0; h <= 6; h++) {
         for (let m of [0, 30]) {
-            const hh = String(h).padStart(2,'0');
-            const mm = String(m).padStart(2,'0');
-            lateSlots.push({ label: '翌' + hh + ':' + mm, value: hh + ':' + mm });
+            const hh = String(h).padStart(2,'0'), mm = String(m).padStart(2,'0');
+            lateSlots.push({ label: '翌'+hh+':'+mm, value: hh+':'+mm });
         }
     }
     function fillSel(sel, includeLate) {
         sel.innerHTML = '<option value="">選択</option>';
-        slots.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s; opt.textContent = s;
-            sel.appendChild(opt);
-        });
+        slots.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; sel.appendChild(opt); });
         if (includeLate) {
-            const grp = document.createElement('optgroup');
-            grp.label = '── 翌日 ──';
-            lateSlots.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s.value; opt.textContent = s.label;
-                grp.appendChild(opt);
-            });
+            const grp = document.createElement('optgroup'); grp.label = '── 翌日 ──';
+            lateSlots.forEach(s => { const opt = document.createElement('option'); opt.value = s.value; opt.textContent = s.label; grp.appendChild(opt); });
             sel.appendChild(grp);
         }
     }
-    fillSel(startSel, false);
-    fillSel(document.getElementById('editWorkEnd'), true);
+    fillSel(startSel, false); fillSel(document.getElementById('editWorkEnd'), true);
 }
 async function saveEditWorkTime() {
     const id = document.getElementById('editWorkTimeId').value;
@@ -2348,24 +2279,16 @@ async function saveEditWorkTime() {
     if (et <= st) et.setDate(et.getDate() + 1);
     const hrs = Math.round((et - st) / (1000*60*60) * 2) / 2;
     appData.workTimes[idx] = { ...appData.workTimes[idx], date, start, end, hours: hrs, dohan, transportOverride };
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editWorkTimeModal');
-    loadCastSalaryData();
-    alert('更新しました！');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editWorkTimeModal'); loadCastSalaryData(); alert('更新しました！');
 }
 async function deleteWorkTime() {
     const id = document.getElementById('editWorkTimeId').value;
     const w = appData.workTimes.find(x => x.id === id);
     if (!confirm(`${new Date(w.date).toLocaleDateString('ja-JP')} の勤務記録を削除してもよろしいですか？`)) return;
     appData.workTimes = appData.workTimes.filter(x => x.id !== id);
-    showLoading(true);
-    await saveData();
-    showLoading(false);
-    closeModal('editWorkTimeModal');
-    loadCastSalaryData();
-    alert('削除しました');
+    showLoading(true); await saveData(); showLoading(false);
+    closeModal('editWorkTimeModal'); loadCastSalaryData(); alert('削除しました');
 }
 async function saveQuickWorkTime() {
     const castId = document.getElementById('salaryCast').value;
@@ -2380,14 +2303,12 @@ async function saveQuickWorkTime() {
     const hrs = Math.round((et - st) / (1000*60*60) * 2) / 2;
     showLoading(true);
     appData.workTimes.push({ id: Date.now().toString(), castId, date, start, end, hours: hrs, dohan, transportOverride });
-    await saveData();
-    showLoading(false);
+    await saveData(); showLoading(false);
     document.getElementById('quickWorkStart').value = '';
     document.getElementById('quickWorkEnd').value = '';
     document.getElementById('quickWorkDohan').value = '0';
     document.getElementById('quickWorkTransportAmount').value = '';
-    loadCastSalaryData();
-    alert('勤務時間を登録しました！');
+    loadCastSalaryData(); alert('勤務時間を登録しました！');
 }
 function loadCastSalaryData() {
     const castId = document.getElementById('salaryCast').value;
@@ -2411,9 +2332,7 @@ function loadCastSalaryData() {
     const hourlyPay = totalHours * cast.hourly;
     const dohanPay = dohanCnt * cast.dohanBack;
     const transportPay = wts.reduce((s, w) => {
-        const t = (w.transportOverride !== undefined && w.transportOverride >= 0)
-            ? w.transportOverride
-            : cast.transport;
+        const t = (w.transportOverride !== undefined && w.transportOverride >= 0) ? w.transportOverride : cast.transport;
         return s + t;
     }, 0);
     const invs = appData.invoices.filter(i => filterDate(i.completedAt || i.createdAt));
@@ -2466,18 +2385,13 @@ function loadCastSalaryData() {
     `;
 }
 
-// ── 売上 ─────────────────────────────────────────────────
+// ── 売上 ──
 function onSalesPeriodChange() {
     const period = document.getElementById('salesPeriod').value;
     const monthRow = document.getElementById('salesMonthRow');
     const dayRow = document.getElementById('salesDayRow');
-    if (period === 'monthly') {
-        monthRow.style.display = 'block';
-        buildSalesMonthSelect();
-    } else {
-        monthRow.style.display = 'none';
-        dayRow.style.display = 'none';
-    }
+    if (period === 'monthly') { monthRow.style.display = 'block'; buildSalesMonthSelect(); }
+    else { monthRow.style.display = 'none'; dayRow.style.display = 'none'; }
     loadSalesData();
 }
 function buildSalesMonthSelect() {
@@ -2491,10 +2405,7 @@ function buildSalesMonthSelect() {
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     sel.innerHTML = months.length
-        ? months.map(m => {
-            const [y, mo] = m.split('-');
-            return `<option value="${m}" ${m===thisMonth?'selected':''}>${y}年${parseInt(mo)}月</option>`;
-          }).join('')
+        ? months.map(m => { const [y,mo]=m.split('-'); return `<option value="${m}" ${m===thisMonth?'selected':''}>${y}年${parseInt(mo)}月</option>`; }).join('')
         : '<option value="">データなし</option>';
     onSalesMonthChange();
 }
@@ -2506,17 +2417,12 @@ function onSalesMonthChange() {
     const daySet = new Set();
     appData.invoices.forEach(i => {
         const d = new Date(i.completedAt || i.createdAt);
-        if (d.getFullYear() === y && d.getMonth()+1 === mo) {
-            daySet.add(d.toISOString().split('T')[0]);
-        }
+        if (d.getFullYear() === y && d.getMonth()+1 === mo) daySet.add(d.toISOString().split('T')[0]);
     });
     const days = [...daySet].sort().reverse();
     const sel = document.getElementById('salesDay');
     sel.innerHTML = '<option value="">── 月全体の集計を表示</option>'
-        + days.map(d => {
-            const dt = new Date(d);
-            return `<option value="${d}">${dt.getMonth()+1}月${dt.getDate()}日（${['日','月','火','水','木','金','土'][dt.getDay()]}）</option>`;
-          }).join('');
+        + days.map(d => { const dt = new Date(d); return `<option value="${d}">${dt.getMonth()+1}月${dt.getDate()}日（${['日','月','火','水','木','金','土'][dt.getDay()]}）</option>`; }).join('');
     dayRow.style.display = 'block';
     loadSalesData();
 }
@@ -2526,14 +2432,9 @@ function loadSalesData() {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     let filterDate, periodLabel = '';
-    if (period === 'today') {
-        filterDate = d => d.split('T')[0] === today;
-        periodLabel = '本日';
-    } else if (period === 'month') {
-        filterDate = d => {
-            const dt = new Date(d);
-            return dt.getFullYear()===now.getFullYear() && dt.getMonth()===now.getMonth();
-        };
+    if (period === 'today') { filterDate = d => d.split('T')[0] === today; periodLabel = '本日'; }
+    else if (period === 'month') {
+        filterDate = d => { const dt = new Date(d); return dt.getFullYear()===now.getFullYear()&&dt.getMonth()===now.getMonth(); };
         periodLabel = `${now.getMonth()+1}月`;
     } else if (period === 'monthly') {
         const month = document.getElementById('salesMonth')?.value;
@@ -2545,10 +2446,7 @@ function loadSalesData() {
             periodLabel = `${dt.getMonth()+1}月${dt.getDate()}日`;
         } else {
             const [y, mo] = month.split('-').map(Number);
-            filterDate = d => {
-                const dt = new Date(d);
-                return dt.getFullYear()===y && dt.getMonth()+1===mo;
-            };
+            filterDate = d => { const dt = new Date(d); return dt.getFullYear()===y&&dt.getMonth()+1===mo; };
             periodLabel = `${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`;
         }
     }
@@ -2581,8 +2479,7 @@ function renderCustomerSales(invs) {
     const sales = {};
     invs.forEach(i => {
         if (!sales[i.customerId]) sales[i.customerId] = { total:0, count:0, drinks:0 };
-        sales[i.customerId].total += i.total;
-        sales[i.customerId].count++;
+        sales[i.customerId].total += i.total; sales[i.customerId].count++;
         sales[i.customerId].drinks += i.drinks.reduce((s,d)=>s+d.count,0);
     });
     const sorted = Object.entries(sales).sort((a,b)=>b[1].total-a[1].total);
@@ -2600,10 +2497,7 @@ function renderCastSales(invs) {
         if (!castIds.length) return;
         castIds.forEach(cid => {
             if (!castTotals[cid]) castTotals[cid] = { drinkTotal:0, drinkCount:0, invSet: new Set() };
-            inv.drinks.filter(d=>d.castId===cid).forEach(d => {
-                castTotals[cid].drinkCount += d.count;
-                castTotals[cid].drinkTotal += d.price * d.count;
-            });
+            inv.drinks.filter(d=>d.castId===cid).forEach(d => { castTotals[cid].drinkCount += d.count; castTotals[cid].drinkTotal += d.price*d.count; });
             castTotals[cid].invSet.add(inv.id);
         });
     });
@@ -2617,13 +2511,10 @@ function renderCastSales(invs) {
 }
 function renderCrossTable(invs) {
     document.getElementById('salesSummary').innerHTML = `<div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${invs.reduce((s,i)=>s+i.total,0).toLocaleString()}</div></div>`;
-    if (!invs.length) {
-        document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>売上データがありません</div></div>'; return;
-    }
+    if (!invs.length) { document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>売上データがありません</div></div>'; return; }
     const crossData = {};
     invs.forEach(inv => {
-        const cuId = inv.customerId;
-        if (!cuId) return;
+        const cuId = inv.customerId; if (!cuId) return;
         if (!crossData[cuId]) crossData[cuId] = {};
         inv.drinks.forEach(d => {
             if (!d.castId) return;
@@ -2639,38 +2530,28 @@ function renderCrossTable(invs) {
         const tb = Object.values(crossData[b]).reduce((s,v)=>s+v,0);
         return tb - ta;
     });
-    if (!castIds.length || !customerIds.length) {
-        document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>キャストへのドリンクデータがありません</div></div>'; return;
-    }
+    if (!castIds.length || !customerIds.length) { document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>キャストへのドリンクデータがありません</div></div>'; return; }
     const castNames = castIds.map(id => appData.casts.find(c=>c.id===id)?.name || '不明');
     let html = `<div style="margin-top:10px;font-size:12px;color:var(--text-dim);margin-bottom:8px;">※ キャストへのドリンク代のみ集計（セット料金除く）</div>
     <div class="cross-table-wrap"><table class="cross-table">
-        <thead><tr><th>顧客</th>${castNames.map(n=>`<th>${n}</th>`).join('')}
-        <th style="color:var(--warning);">合計</th></tr></thead><tbody>`;
+        <thead><tr><th>顧客</th>${castNames.map(n=>`<th>${n}</th>`).join('')}<th style="color:var(--warning);">合計</th></tr></thead><tbody>`;
     customerIds.forEach(cuId => {
         const cu = appData.customers.find(c=>c.id===cuId);
         const row = crossData[cuId];
         const rowTotal = Object.values(row).reduce((s,v)=>s+v,0);
         if (rowTotal === 0) return;
         html += `<tr><td>${cu?.name||'不明'}</td>`;
-        castIds.forEach(cid => {
-            const v = row[cid] || 0;
-            html += `<td class="${v===0?'zero':''}">${v===0?'-':'¥'+v.toLocaleString()}</td>`;
-        });
+        castIds.forEach(cid => { const v = row[cid]||0; html += `<td class="${v===0?'zero':''}">${v===0?'-':'¥'+v.toLocaleString()}</td>`; });
         html += `<td style="color:var(--warning);font-weight:700;">¥${rowTotal.toLocaleString()}</td></tr>`;
     });
     html += `<tr class="total-row"><td>合計</td>`;
-    castIds.forEach(cid => {
-        const v = customerIds.reduce((s,cuId)=>s+(crossData[cuId][cid]||0),0);
-        html += `<td>¥${v.toLocaleString()}</td>`;
-    });
+    castIds.forEach(cid => { const v = customerIds.reduce((s,cuId)=>s+(crossData[cuId][cid]||0),0); html += `<td>¥${v.toLocaleString()}</td>`; });
     const drinkGrandTotal = customerIds.reduce((s,cuId)=>s+Object.values(crossData[cuId]).reduce((ss,v)=>ss+v,0),0);
-    html += `<td>¥${drinkGrandTotal.toLocaleString()}</td></tr>`;
-    html += '</tbody></table></div>';
+    html += `<td>¥${drinkGrandTotal.toLocaleString()}</td></tr></tbody></table></div>`;
     document.getElementById('salesDetails').innerHTML = html;
 }
 
-// ── 顧客詳細 ─────────────────────────────────────────────
+// ── 顧客詳細 ──
 function showCustomerDetail(customerId) {
     const cu = appData.customers.find(c=>c.id===customerId);
     if (!cu) return;
@@ -2678,9 +2559,7 @@ function showCustomerDetail(customerId) {
     const totalSpent = invs.reduce((s,i)=>s+i.total,0);
     const totalDrinks = invs.reduce((s,i)=>s+i.drinks.reduce((ss,d)=>ss+d.count,0),0);
     const castDrinks = {};
-    invs.forEach(i => i.drinks.forEach(d => {
-        if (d.castId) castDrinks[d.castId] = (castDrinks[d.castId]||0) + d.count;
-    }));
+    invs.forEach(i => i.drinks.forEach(d => { if (d.castId) castDrinks[d.castId] = (castDrinks[d.castId]||0) + d.count; }));
     const favCastId = Object.entries(castDrinks).sort((a,b)=>b[1]-a[1])[0]?.[0];
     const favCast = favCastId ? appData.casts.find(c=>c.id===favCastId) : null;
     const castSpend = {};
@@ -2732,7 +2611,7 @@ function showCustomerDetail(customerId) {
     openModal('customerModal');
 }
 
-// ── レシート印刷 ─────────────────────────────────────────
+// ── レシート印刷 ──
 function printReceipt(invoiceId) {
     const inv = appData.invoices.find(i => i.id === invoiceId);
     if (!inv) { alert('確定済みの伝票が見つかりません'); return; }
@@ -2740,9 +2619,7 @@ function printReceipt(invoiceId) {
     const dt = new Date(inv.completedAt || inv.createdAt);
     const dateStr = dt.toLocaleDateString('ja-JP', {year:'numeric', month:'long', day:'numeric'});
     const timeStr = dt.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
-    const seatStr = inv.seatPrice > 0
-        ? 'ボックス席' + (inv.boxNum ? ' #' + inv.boxNum : '') + ' (+¥1,000)'
-        : 'カウンター席';
+    const seatStr = inv.seatPrice > 0 ? 'ボックス席' + (inv.boxNum ? ' #' + inv.boxNum : '') + ' (+¥1,000)' : 'カウンター席';
     const setLabel = inv.hasBottle ? 'セット料金（ボトル有）' : 'セット料金（ボトル無）';
     const drinkLines = [];
     const kleinerMap = {};
@@ -2778,49 +2655,31 @@ function printReceipt(invoiceId) {
         const countStr = d.isTotalLine ? '' : ' × ' + d.count;
         rows.push({ label: d.name + countStr, price: amt, indent: true });
     });
-    const rowsHtml = rows.map(r =>
-        '<div class="receipt-row' + (r.indent ? ' indent' : '') + '">' +
-        '<span>' + r.label + '</span>' +
-        '<span>¥' + r.price.toLocaleString() + '</span>' +
-        '</div>'
-    ).join('');
+    const rowsHtml = rows.map(r => '<div class="receipt-row' + (r.indent ? ' indent' : '') + '"><span>' + r.label + '</span><span>¥' + r.price.toLocaleString() + '</span></div>').join('');
     const isCard = inv.paymentMethod === 'card';
     const isPaypay = inv.paymentMethod === 'paypay';
     const totalAmount = inv.total;
     let subtotalEx, tax, subtotalInc, cardFee, roundingAdj;
     if (inv.subtotalEx) {
-        subtotalEx = inv.subtotalEx;
-        tax = Math.floor(subtotalEx * 0.1);
-        subtotalInc = subtotalEx + tax;
-        cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
+        subtotalEx = inv.subtotalEx; tax = Math.floor(subtotalEx * 0.1);
+        subtotalInc = subtotalEx + tax; cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
         roundingAdj = totalAmount - (subtotalInc + cardFee);
     } else if (isCard) {
-        subtotalEx = Math.round(totalAmount / 1.21);
-        tax = Math.round(subtotalEx * 0.1);
-        subtotalInc = subtotalEx + tax;
-        cardFee = totalAmount - subtotalInc;
-        roundingAdj = 0;
+        subtotalEx = Math.round(totalAmount / 1.21); tax = Math.round(subtotalEx * 0.1);
+        subtotalInc = subtotalEx + tax; cardFee = totalAmount - subtotalInc; roundingAdj = 0;
     } else {
-        subtotalEx = Math.round(totalAmount / 1.1);
-        tax = Math.round(subtotalEx * 0.1);
-        subtotalInc = totalAmount;
-        cardFee = 0;
-        roundingAdj = 0;
+        subtotalEx = Math.round(totalAmount / 1.1); tax = Math.round(subtotalEx * 0.1);
+        subtotalInc = totalAmount; cardFee = 0; roundingAdj = 0;
     }
     const payMethodLabel = isCard ? 'クレジットカード' : isPaypay ? 'PayPay' : '現金';
-    const cardFeeRow = isCard
-        ? '<div class="receipt-row" style="font-weight:600;"><span>カード手数料（10%）</span><span>¥' + cardFee.toLocaleString() + '</span></div>'
-        : '';
-    const roundingRow = roundingAdj > 0
-        ? '<div class="receipt-row"><span>端数調整（100円切り上げ）</span><span>+¥' + roundingAdj.toLocaleString() + '</span></div>'
-        : '';
+    const cardFeeRow = isCard ? '<div class="receipt-row" style="font-weight:600;"><span>カード手数料（10%）</span><span>¥' + cardFee.toLocaleString() + '</span></div>' : '';
+    const roundingRow = roundingAdj > 0 ? '<div class="receipt-row"><span>端数調整（100円切り上げ）</span><span>+¥' + roundingAdj.toLocaleString() + '</span></div>' : '';
     const html = '<div class="receipt-wrap">' +
         '<div class="receipt-shop">SNACK 73</div>' +
         '<div class="receipt-sub">スナックセブンスリー</div>' +
         '<hr class="receipt-divider">' +
         '<div class="receipt-row"><span>日時</span><span>' + dateStr + ' ' + timeStr + '</span></div>' +
-        '<hr class="receipt-divider">' +
-        rowsHtml +
+        '<hr class="receipt-divider">' + rowsHtml +
         '<hr class="receipt-divider">' +
         '<div class="receipt-row"><span>小計（税抜）</span><span>¥' + subtotalEx.toLocaleString() + '</span></div>' +
         '<div class="receipt-row"><span>消費税（10%）</span><span>¥' + tax.toLocaleString() + '</span></div>' +
@@ -2837,23 +2696,85 @@ function printReceipt(invoiceId) {
     window.print();
 }
 
-// ── 送迎代UIヘルパー ─────────────────────────────────────
+// ── データ出力 ──
+const FIREBASE_API_KEY = 'AIzaSyAMLRv57b_On4fVhkQKl1fJJOy-WN520wU';
+const FIREBASE_PROJECT = 'snack73-a01ee';
+const FIRESTORE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/snack73/main?key=${FIREBASE_API_KEY}`;
 
+function renderExportTab() { fillPowerQueryTexts(); }
 
+function fillPowerQueryTexts() {
+    const base = `let
+    Source = Json.Document(Web.Contents("${FIRESTORE_URL}")),
+    payload = Json.Document(Source[fields][payload][stringValue])`;
+
+    document.getElementById('pq_invoices').value =
+`${base},
+    invoices = payload[invoices],
+    toTable = Table.FromList(invoices, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+    expanded = Table.ExpandRecordColumn(toTable, "Column1",
+        {"id","completedAt","total","people","setPrice","hasBottle","seatPrice","paymentMethod","karaoke"},
+        {"伝票ID","確定日時","合計","人数","セット料金","ボトル","席料","支払方法","カラオケ"}),
+    typed = Table.TransformColumnTypes(expanded, {{"合計", Int64.Type}, {"人数", Int64.Type}})
+in
+    typed`;
+
+    document.getElementById('pq_customers').value =
+`${base},
+    customers = payload[customers],
+    toTable = Table.FromList(customers, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+    expanded = Table.ExpandRecordColumn(toTable, "Column1",
+        {"id","name","birthday","memo","createdAt"},
+        {"顧客ID","顧客名","誕生日","メモ","登録日"})
+in
+    expanded`;
+
+    document.getElementById('pq_worktimes').value =
+`${base},
+    workTimes = payload[workTimes],
+    toTable = Table.FromList(workTimes, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+    expanded = Table.ExpandRecordColumn(toTable, "Column1",
+        {"id","castId","date","start","end","hours","dohan","transportOverride"},
+        {"勤務ID","キャストID","日付","開始","終了","時間","同伴","送迎代"}),
+    typed = Table.TransformColumnTypes(expanded, {{"時間", type number}})
+in
+    typed`;
+
+    document.getElementById('pq_inventory').value =
+`${base},
+    inventory = payload[inventory],
+    toTable = Table.FromList(inventory, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+    expanded = Table.ExpandRecordColumn(toTable, "Column1",
+        {"id","name","type","currentStock","minStock","reductionPerOrder"},
+        {"在庫ID","在庫名","種類","現在庫数","必要本数","削減数/注文"}),
+    typed = Table.TransformColumnTypes(expanded, {{"現在庫数", type number}, {"必要本数", type number}})
+in
+    typed`;
+}
+
+function copyPQ(id) {
+    const el = document.getElementById(id);
+    el.select();
+    document.execCommand('copy');
+    window.getSelection()?.removeAllRanges();
+    const btn = el.previousElementSibling.querySelector('button');
+    const orig = btn.textContent;
+    btn.textContent = '✅ コピー済み';
+    btn.style.color = 'var(--success)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+}
+
+// ── ヘルパー ──
 function getQuickWorkTransportValue() {
     const val = document.getElementById('quickWorkTransportAmount').value;
     return val === '' ? -1 : (parseInt(val) || 0);
 }
-
-
-
 function getEditWorkTransportValue() {
     const val = document.getElementById('editWorkTransportAmount').value;
     return val === '' ? -1 : (parseInt(val) || 0);
 }
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-
 function renderCastSelects() {
     ['salaryCast','workCast'].forEach(id => {
         const el = document.getElementById(id);
@@ -2864,7 +2785,6 @@ function renderCastSelects() {
         el.value = v;
     });
 }
-
 function renderCustomerSelects() {
     const el = document.getElementById('editInvoiceCustomer');
     if (!el) return;
@@ -2873,14 +2793,10 @@ function renderCustomerSelects() {
     appData.customers.forEach(c => { const o = document.createElement('option'); o.value=c.id; o.textContent=c.name; el.appendChild(o); });
     el.value = v;
 }
-
 function renderAll() {
-    renderCastSelects();
-    renderCustomerSelects();
-    renderCastList();
-    renderCustomerList();
-    renderActiveInvoices();
-    renderCompletedInvoices();
+    renderCastSelects(); renderCustomerSelects();
+    renderCastList(); renderCustomerList();
+    renderActiveInvoices(); renderCompletedInvoices();
     renderDrinkSettings();
     renderInvLinkedDrinksSelect('invLinkedDrinks');
     renderInventory();
