@@ -65,7 +65,6 @@
             letter-spacing: 3px;
             text-shadow: 0 2px 10px rgba(0,0,0,0.5);
         }
-        /* ローディングオーバーレイ */
         #loadingOverlay {
             position: fixed;
             inset: 0;
@@ -399,7 +398,6 @@
             color: var(--secondary);
         }
         @media (max-width: 480px) { .stat-grid { grid-template-columns: 1fr; } }
-        /* カウンター */
         .counter-wrap {
             display: flex;
             align-items: center;
@@ -441,7 +439,6 @@
         .counter-wrap.drink-counter .counter-btn { background: rgba(0,204,255,0.08); }
         .counter-wrap.drink-counter .counter-btn:active { background: var(--secondary); color: var(--dark); }
 
-        /* ── レシート印刷 ── */
         #receiptPrintArea { display: none; }
         @media print {
             body * { visibility: hidden !important; }
@@ -512,7 +509,6 @@
 </head>
 <body>
 
-<!-- ローディング -->
 <div id="loadingOverlay">
     <div class="spinner"></div>
     <div>データを読み込み中...</div>
@@ -736,11 +732,9 @@
                         <option value="cross">顧客×キャスト</option>
                     </select>
                 </div>
-                <!-- 月選択（月ごと選択時に表示） -->
                 <div id="salesMonthRow" style="display:none;margin-bottom:12px;">
                     <select id="salesMonth" class="form-control" onchange="onSalesMonthChange()"></select>
                 </div>
-                <!-- 日付選択（月を選んだあとに表示） -->
                 <div id="salesDayRow" style="display:none;margin-bottom:12px;">
                     <select id="salesDay" class="form-control" onchange="loadSalesData()">
                         <option value="">── 日付を選択（月合計を表示）</option>
@@ -861,13 +855,39 @@
                 </div>
             </div>
             <div class="form-group">
+                <label class="form-label">支払方法</label>
+                <select id="editInvoicePaymentMethod" class="form-control" onchange="calculateEditInvoice()">
+                    <option value="cash">現金</option>
+                    <option value="paypay">PayPay</option>
+                    <option value="card">クレジットカード（手数料+10%）</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label class="form-label">ドリンク</label>
                 <div id="editInvoiceDrinks"></div>
                 <button class="btn btn-secondary btn-block" onclick="addEditInvoiceDrink()">+ ドリンク追加</button>
             </div>
             <div class="total-display">
-                <div class="total-label">合計金額</div>
-                <div class="total-amount" id="editInvoiceTotal">¥0</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;opacity:0.75;">
+                    <div style="font-size:13px;">小計（税抜）</div>
+                    <div style="font-size:18px;font-weight:600;" id="editInvoiceSubtotalEx">¥0</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;opacity:0.75;">
+                    <div style="font-size:13px;">消費税（10%）</div>
+                    <div style="font-size:18px;font-weight:600;" id="editInvoiceTax">¥0</div>
+                </div>
+                <div id="editInvoiceSubtotalRow" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;opacity:0.75;">
+                    <div style="font-size:13px;">小計（税込）</div>
+                    <div style="font-size:18px;font-weight:600;" id="editInvoiceSubtotal">¥0</div>
+                </div>
+                <div id="cardFeeRow" style="display:none;justify-content:space-between;align-items:center;margin-bottom:4px;opacity:0.75;">
+                    <div style="font-size:13px;">カード手数料（10%）</div>
+                    <div style="font-size:18px;font-weight:600;" id="editInvoiceCardFee">¥0</div>
+                </div>
+                <div style="border-top:2px solid rgba(255,255,255,0.3);padding-top:12px;margin-top:8px;">
+                    <div class="total-label">合計金額</div>
+                    <div class="total-amount" id="editInvoiceTotal">¥0</div>
+                </div>
             </div>
             <div class="invoice-action-btns">
                 <button class="btn btn-warning" onclick="saveEditInvoice()">💾 途中保存</button>
@@ -1025,7 +1045,6 @@ import {
     setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ── Firebase 初期化 ─────────────────────────────────
 const firebaseConfig = {
     apiKey: "AIzaSyAMLRv57b_On4fVhkQKl1fJJOy-WN520wU",
     authDomain: "snack73-a01ee.firebaseapp.com",
@@ -1039,7 +1058,6 @@ const db = getFirestore(firebaseApp);
 
 const DOC_REF = doc(db, "snack73", "main");
 
-// ── データ読み書き（Firestoreに完全置き換え）─────────
 window._loadData = async function() {
     try {
         const snap = await getDoc(DOC_REF);
@@ -1063,12 +1081,10 @@ window._saveData = async function() {
     }
 };
 
-// ── アプリ起動 ──────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => { init(); });
 </script>
 
 <script>
-// ── アプリデータ ────────────────────────────────────
 let appData = {
     casts: [],
     customers: [],
@@ -1080,7 +1096,6 @@ let appData = {
 let currentEditingInvoiceId = null;
 let currentBoxNum = null;
 
-// ── 初期化 ──────────────────────────────────────────
 async function init() {
     showLoading(true);
     await window._loadData();
@@ -1096,7 +1111,6 @@ function showLoading(show) {
 async function loadData() { await window._loadData(); }
 async function saveData() { await window._saveData(); }
 
-// ── タブ切り替え ────────────────────────────────────
 function switchTab(tabName, btn) {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -1109,7 +1123,6 @@ function switchTab(tabName, btn) {
     if (tabName === 'customer') renderCustomerList();
 }
 
-// ── ドリンク設定 ────────────────────────────────────
 function toggleDrinkTypeFields() {
     const type = document.getElementById('drinkSettingType').value;
     document.getElementById('normalDrinkFields').style.display = type === 'ショット' ? 'none' : 'block';
@@ -1177,7 +1190,6 @@ function renderDrinkSettings() {
     c.innerHTML = html;
 }
 
-// ── キャスト ────────────────────────────────────────
 async function addCast() {
     const name = document.getElementById('newCastName').value.trim();
     if (!name) { alert('キャスト名を入力してください'); return; }
@@ -1277,7 +1289,6 @@ async function deleteCast() {
     alert('削除しました');
 }
 
-// ── 顧客 ────────────────────────────────────────────
 async function addCustomer() {
     const name = document.getElementById('newCustomerName').value.trim();
     if (!name) { alert('顧客名を入力してください'); return; }
@@ -1368,7 +1379,6 @@ async function deleteCustomer() {
     alert('削除しました');
 }
 
-// ── 伝票 ────────────────────────────────────────────
 async function createNewInvoice() {
     const inv = {
         id: Date.now().toString(),
@@ -1415,6 +1425,7 @@ function openInvoiceModal(inv, isCompleted) {
     document.getElementById('editInvoicePeople').value = inv.people || 1;
     document.getElementById('editInvoiceSeat').value = inv.seatPrice || 0;
     document.getElementById('editInvoiceExtension').value = inv.extension || 0;
+    document.getElementById('editInvoicePaymentMethod').value = inv.paymentMethod || 'cash';
     const karaokeVal = inv.karaoke || 0;
     document.getElementById('editInvoiceKaraoke').value = karaokeVal;
     document.getElementById('editInvoiceKaraokeVal').textContent = karaokeVal;
@@ -1502,7 +1513,6 @@ function addEditInvoiceDrink(existingDrink = null) {
         updateDrinkOptions(pts);
         const ds = item.querySelector('.drink-type');
         ds.value = existingDrink.drinkId || '';
-        // カウンター表示を既存の杯数で初期化
         const countVal = existingDrink.count || 1;
         item.querySelector('.drink-count').value = countVal;
         item.querySelector('.drink-count-val').textContent = countVal;
@@ -1564,7 +1574,6 @@ function updateDrinkLabel(el) {
     }
 }
 
-// ── カウンター操作 ──────────────────────────────────
 function changeKaraoke(delta) {
     const hidden = document.getElementById('editInvoiceKaraoke');
     const disp = document.getElementById('editInvoiceKaraokeVal');
@@ -1588,6 +1597,13 @@ function changeDrinkCount(btn, delta) {
 }
 
 function roundUpTo50(n) { return Math.ceil(n / 50) * 50; }
+
+// ── 料金計算ロジック（消費税・支払方法対応版）──────────
+// 小計（税抜） = セット料金 + 席料 + 延長 + カラオケ + ドリンク
+// 消費税 = 小計（税抜） × 10%
+// 小計（税込） = 小計（税抜） + 消費税
+// カード手数料 = 小計（税込） × 10%（カードのみ）
+// 合計 = 小計（税込） + カード手数料
 
 function calculateEditInvoice() {
     const setData = document.getElementById('editInvoiceSet').value.split('-');
@@ -1637,7 +1653,30 @@ function calculateEditInvoice() {
         }
     });
 
-    const total = roundUpTo50(totalSet + extPrice + karaokePrice + drinksTotal);
+    // 税抜小計
+    const subtotalEx = roundUpTo50(totalSet + extPrice + karaokePrice + drinksTotal);
+    // 消費税 10%
+    const tax = Math.floor(subtotalEx * 0.1);
+    // 税込小計
+    const subtotalInc = subtotalEx + tax;
+
+    const paymentMethod = document.getElementById('editInvoicePaymentMethod').value;
+    const isCard = paymentMethod === 'card';
+    // カード手数料は税込小計の10%
+    const cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
+    const total = subtotalInc + cardFee;
+
+    document.getElementById('editInvoiceSubtotalEx').textContent = `¥${subtotalEx.toLocaleString()}`;
+    document.getElementById('editInvoiceTax').textContent = `¥${tax.toLocaleString()}`;
+    document.getElementById('editInvoiceSubtotal').textContent = `¥${subtotalInc.toLocaleString()}`;
+
+    const cardFeeRow = document.getElementById('cardFeeRow');
+    if (isCard) {
+        cardFeeRow.style.display = 'flex';
+        document.getElementById('editInvoiceCardFee').textContent = `¥${cardFee.toLocaleString()}`;
+    } else {
+        cardFeeRow.style.display = 'none';
+    }
     document.getElementById('editInvoiceTotal').textContent = `¥${total.toLocaleString()}`;
     document.getElementById('extensionGroup').style.display = hasBottle ? 'none' : 'block';
     if (hasBottle) document.getElementById('editInvoiceExtension').value = '0';
@@ -1659,6 +1698,7 @@ async function saveEditInvoice() {
     inv.boxNum = currentBoxNum;
     inv.extension = parseInt(document.getElementById('editInvoiceExtension').value);
     inv.karaoke = parseInt(document.getElementById('editInvoiceKaraoke').value);
+    inv.paymentMethod = document.getElementById('editInvoicePaymentMethod').value;
     inv.drinks = collectDrinks();
     inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
 
@@ -1687,6 +1727,7 @@ async function completeInvoice() {
     inv.boxNum = currentBoxNum;
     inv.extension = parseInt(document.getElementById('editInvoiceExtension').value);
     inv.karaoke = parseInt(document.getElementById('editInvoiceKaraoke').value);
+    inv.paymentMethod = document.getElementById('editInvoicePaymentMethod').value;
     inv.drinks = collectDrinks();
     inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
     inv.status = 'completed';
@@ -1768,10 +1809,12 @@ function renderCompletedInvoices() {
     if (!list.length) {
         c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div>本日の確定伝票はまだありません</div></div>'; return;
     }
+    const payLabel = { cash: '現金', paypay: 'PayPay', card: 'カード' };
     c.innerHTML = list.map(inv => {
         const cu = appData.customers.find(c => c.id === inv.customerId);
         const time = new Date(inv.completedAt).toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit'});
         const seatLabel = inv.seatPrice > 0 ? ` / BOX${inv.boxNum ? ' #'+inv.boxNum : ''}` : ' / カウンター';
+        const pm = payLabel[inv.paymentMethod] || '現金';
         return `<div class="list-item" onclick="editCompletedInvoice('${inv.id}')">
             <div class="list-item-header">
                 <div class="list-item-title">${cu?.name||'不明'}</div>
@@ -1780,12 +1823,11 @@ function renderCompletedInvoices() {
                     <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="printReceipt('${inv.id}');event.stopPropagation();">🖨️</button>
                 </div>
             </div>
-            <div class="list-item-meta">${time} / ${inv.people||1}名${seatLabel} / ドリンク${inv.drinks.reduce((s,d)=>s+d.count,0)}杯</div>
+            <div class="list-item-meta">${time} / ${inv.people||1}名${seatLabel} / ${pm} / ドリンク${inv.drinks.reduce((s,d)=>s+d.count,0)}杯</div>
         </div>`;
     }).join('');
 }
 
-// ── 給料計算 ────────────────────────────────────────
 function renderSalarySection() {
     renderCastSelects();
     buildTimeSelects();
@@ -1795,8 +1837,6 @@ function buildTimeSelects() {
     const startSel = document.getElementById('quickWorkStart');
     const endSel = document.getElementById('quickWorkEnd');
     if (!startSel) return;
-
-    // 通常時刻（00:00〜23:30）
     const slots = [];
     for (let h = 0; h < 24; h++) {
         for (let m of [0, 30]) {
@@ -1805,7 +1845,6 @@ function buildTimeSelects() {
             slots.push({ label: hh + ':' + mm, value: hh + ':' + mm });
         }
     }
-    // 翌時刻（翌00:00〜翌06:30）→ 値は同じ時刻文字列、save時に+1日で対応
     const lateSlots = [];
     for (let h = 0; h <= 6; h++) {
         for (let m of [0, 30]) {
@@ -1814,7 +1853,6 @@ function buildTimeSelects() {
             lateSlots.push({ label: '翌' + hh + ':' + mm, value: hh + ':' + mm });
         }
     }
-
     function fillSelect(sel, includeLate) {
         sel.innerHTML = '<option value="">選択してください</option>';
         slots.forEach(s => {
@@ -1833,19 +1871,14 @@ function buildTimeSelects() {
             sel.appendChild(grp);
         }
     }
-
     fillSelect(startSel, false);
     fillSelect(endSel, true);
 }
 
-// ── 勤務時間 編集・削除 ─────────────────────────────
 function openEditWorkTime(workId) {
     const w = appData.workTimes.find(x => x.id === workId);
     if (!w) return;
-
-    // モーダルのプルダウンを構築（未構築なら）
     buildEditWorkTimeSelects();
-
     document.getElementById('editWorkTimeId').value = w.id;
     document.getElementById('editWorkDate').value = w.date;
     document.getElementById('editWorkStart').value = w.start;
@@ -1858,8 +1891,7 @@ function openEditWorkTime(workId) {
 
 function buildEditWorkTimeSelects() {
     const startSel = document.getElementById('editWorkStart');
-    if (startSel.options.length > 1) return; // 初回のみ
-
+    if (startSel.options.length > 1) return;
     const slots = [];
     for (let h = 0; h < 24; h++) {
         for (let m of [0, 30]) {
@@ -1876,7 +1908,6 @@ function buildEditWorkTimeSelects() {
             lateSlots.push({ label: '翌' + hh + ':' + mm, value: hh + ':' + mm });
         }
     }
-
     function fillSel(sel, includeLate) {
         sel.innerHTML = '<option value="">選択</option>';
         slots.forEach(s => {
@@ -1907,14 +1938,11 @@ async function saveEditWorkTime() {
     const dohan = parseInt(document.getElementById('editWorkDohan').value);
     const transportOverride = parseInt(document.getElementById('editWorkTransport').value);
     if (!date || !start || !end) { alert('日付と時刻を入力してください'); return; }
-
     const idx = appData.workTimes.findIndex(x => x.id === id);
     if (idx === -1) return;
-
     let st = new Date(`${date}T${start}`), et = new Date(`${date}T${end}`);
     if (et <= st) et.setDate(et.getDate() + 1);
     const hrs = Math.round((et - st) / (1000*60*60) * 2) / 2;
-
     appData.workTimes[idx] = { ...appData.workTimes[idx], date, start, end, hours: hrs, dohan, transportOverride };
     showLoading(true);
     await saveData();
@@ -1949,7 +1977,6 @@ async function saveQuickWorkTime() {
     if (et <= st) et.setDate(et.getDate() + 1);
     const hrs = Math.round((et - st) / (1000*60*60) * 2) / 2;
     showLoading(true);
-    // transportOverride=-1 はキャスト設定の送迎代を使用、それ以外はその日の個別指定
     appData.workTimes.push({ id: Date.now().toString(), castId, date, start, end, hours: hrs, dohan, transportOverride });
     await saveData();
     showLoading(false);
@@ -1972,13 +1999,11 @@ function loadCastSalaryData() {
     document.getElementById('quickWorkDate').value = new Date().toISOString().split('T')[0];
     const cast = appData.casts.find(x => x.id === castId);
     if (!cast) return;
-
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const filterDate = period === 'today'
         ? d => d.split('T')[0] === today
         : d => { const dt = new Date(d); return dt.getFullYear()===now.getFullYear()&&dt.getMonth()===now.getMonth(); };
-
     const wts = appData.workTimes.filter(w => w.castId === castId && filterDate(w.date));
     const totalHours = wts.reduce((s,w) => s+w.hours, 0);
     const dohanCnt = wts.filter(w => w.dohan===1).length;
@@ -1990,7 +2015,6 @@ function loadCastSalaryData() {
             : cast.transport;
         return s + t;
     }, 0);
-
     const invs = appData.invoices.filter(i => filterDate(i.completedAt || i.createdAt));
     let drinkBacks = {}, drinkBackTotal = 0;
     invs.forEach(inv => inv.drinks.forEach(d => {
@@ -2003,7 +2027,6 @@ function loadCastSalaryData() {
         drinkBacks[d.type].amount += back;
         drinkBackTotal += back;
     }));
-
     const total = hourlyPay + drinkBackTotal + dohanPay + transportPay;
     c.innerHTML = `
         <div class="summary-section">
@@ -2042,13 +2065,10 @@ function loadCastSalaryData() {
     `;
 }
 
-// ── 売上 ────────────────────────────────────────────
-// ── 売上期間切り替え ────────────────────────────────
 function onSalesPeriodChange() {
     const period = document.getElementById('salesPeriod').value;
     const monthRow = document.getElementById('salesMonthRow');
     const dayRow = document.getElementById('salesDayRow');
-
     if (period === 'monthly') {
         monthRow.style.display = 'block';
         buildSalesMonthSelect();
@@ -2061,7 +2081,6 @@ function onSalesPeriodChange() {
 
 function buildSalesMonthSelect() {
     const sel = document.getElementById('salesMonth');
-    // 伝票から存在する年月を収集
     const monthSet = new Set();
     appData.invoices.forEach(i => {
         const d = new Date(i.completedAt || i.createdAt);
@@ -2083,8 +2102,6 @@ function onSalesMonthChange() {
     const month = document.getElementById('salesMonth').value;
     const dayRow = document.getElementById('salesDayRow');
     if (!month) { dayRow.style.display = 'none'; return; }
-
-    // その月の営業日を収集
     const [y, mo] = month.split('-').map(Number);
     const daySet = new Set();
     appData.invoices.forEach(i => {
@@ -2109,10 +2126,8 @@ function loadSalesData() {
     const type = document.getElementById('salesType').value;
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-
     let filterDate;
     let periodLabel = '';
-
     if (period === 'today') {
         filterDate = d => d.split('T')[0] === today;
         periodLabel = '本日';
@@ -2127,12 +2142,10 @@ function loadSalesData() {
         const selectedDay = document.getElementById('salesDay')?.value;
         if (!month) { filterDate = () => false; }
         else if (selectedDay) {
-            // 特定の日
             filterDate = d => d.split('T')[0] === selectedDay;
             const dt = new Date(selectedDay);
             periodLabel = `${dt.getMonth()+1}月${dt.getDate()}日`;
         } else {
-            // 月全体
             const [y, mo] = month.split('-').map(Number);
             filterDate = d => {
                 const dt = new Date(d);
@@ -2141,7 +2154,6 @@ function loadSalesData() {
             periodLabel = `${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`;
         }
     }
-
     const invs = appData.invoices.filter(i => filterDate(i.completedAt || i.createdAt));
     if (type === 'total') renderTotalSales(invs, periodLabel);
     else if (type === 'customer') renderCustomerSales(invs);
@@ -2153,12 +2165,19 @@ function renderTotalSales(invs, periodLabel) {
     const total = invs.reduce((s,i)=>s+i.total,0);
     const dc = invs.reduce((s,i)=>s+i.drinks.reduce((ss,d)=>ss+d.count,0),0);
     const cuSet = new Set(invs.map(i=>i.customerId)).size;
+    // 支払方法別集計
+    const cashTotal = invs.filter(i=>!i.paymentMethod||i.paymentMethod==='cash').reduce((s,i)=>s+i.total,0);
+    const paypayTotal = invs.filter(i=>i.paymentMethod==='paypay').reduce((s,i)=>s+i.total,0);
+    const cardTotal = invs.filter(i=>i.paymentMethod==='card').reduce((s,i)=>s+i.total,0);
     const labelHtml = periodLabel ? `<div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">📅 ${periodLabel}の売上</div>` : '';
     document.getElementById('salesSummary').innerHTML = labelHtml + `<div class="stat-grid">
         <div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${total.toLocaleString()}</div></div>
         <div class="stat-card"><div class="stat-label">伝票数</div><div class="stat-value">${invs.length}件</div></div>
         <div class="stat-card"><div class="stat-label">来店客数</div><div class="stat-value">${cuSet}名</div></div>
         <div class="stat-card"><div class="stat-label">ドリンク数</div><div class="stat-value">${dc}杯</div></div>
+        <div class="stat-card" style="border-left-color:var(--success);"><div class="stat-label">💴 現金</div><div class="stat-value" style="font-size:18px;">¥${cashTotal.toLocaleString()}</div></div>
+        <div class="stat-card" style="border-left-color:var(--secondary);"><div class="stat-label">📱 PayPay</div><div class="stat-value" style="font-size:18px;">¥${paypayTotal.toLocaleString()}</div></div>
+        <div class="stat-card" style="grid-column:1/-1;border-left-color:var(--warning);"><div class="stat-label">💳 クレジットカード</div><div class="stat-value" style="font-size:18px;">¥${cardTotal.toLocaleString()}</div></div>
     </div>`;
     document.getElementById('salesDetails').innerHTML = '';
 }
@@ -2208,8 +2227,6 @@ function renderCrossTable(invs) {
     if (!invs.length) {
         document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>売上データがありません</div></div>'; return;
     }
-
-    // キャストへのドリンク代のみで集計（セット料金は含まない）
     const crossData = {};
     invs.forEach(inv => {
         const cuId = inv.customerId;
@@ -2221,29 +2238,22 @@ function renderCrossTable(invs) {
             crossData[cuId][d.castId] = (crossData[cuId][d.castId] || 0) + amt;
         });
     });
-
-    // 登場したキャストIDを収集
     const castIdSet = new Set();
     Object.values(crossData).forEach(row => Object.keys(row).forEach(k => castIdSet.add(k)));
     const castIds = [...castIdSet];
-
-    // 売上降順で顧客を並べる
     const customerIds = Object.keys(crossData).sort((a,b) => {
         const ta = Object.values(crossData[a]).reduce((s,v)=>s+v,0);
         const tb = Object.values(crossData[b]).reduce((s,v)=>s+v,0);
         return tb - ta;
     });
-
     if (!castIds.length || !customerIds.length) {
         document.getElementById('salesDetails').innerHTML = '<div class="empty-state"><div>キャストへのドリンクデータがありません</div></div>'; return;
     }
-
     const castNames = castIds.map(id => appData.casts.find(c=>c.id===id)?.name || '不明');
     let html = `<div style="margin-top:10px;font-size:12px;color:var(--text-dim);margin-bottom:8px;">※ キャストへのドリンク代のみ集計（セット料金除く）</div>
     <div class="cross-table-wrap"><table class="cross-table">
         <thead><tr><th>顧客</th>${castNames.map(n=>`<th>${n}</th>`).join('')}
         <th style="color:var(--warning);">合計</th></tr></thead><tbody>`;
-
     customerIds.forEach(cuId => {
         const cu = appData.customers.find(c=>c.id===cuId);
         const row = crossData[cuId];
@@ -2256,8 +2266,6 @@ function renderCrossTable(invs) {
         });
         html += `<td style="color:var(--warning);font-weight:700;">¥${rowTotal.toLocaleString()}</td></tr>`;
     });
-
-    // 合計行
     html += `<tr class="total-row"><td>合計</td>`;
     castIds.forEach(cid => {
         const v = customerIds.reduce((s,cuId)=>s+(crossData[cuId][cid]||0),0);
@@ -2269,7 +2277,6 @@ function renderCrossTable(invs) {
     document.getElementById('salesDetails').innerHTML = html;
 }
 
-// ── 顧客詳細 ────────────────────────────────────────
 function showCustomerDetail(customerId) {
     const cu = appData.customers.find(c=>c.id===customerId);
     if (!cu) return;
@@ -2323,14 +2330,15 @@ function showCustomerDetail(customerId) {
             ${invs.slice(-5).reverse().map(inv => {
                 const date = new Date(inv.completedAt||inv.createdAt);
                 const seatLbl = inv.seatPrice>0 ? ` / BOX${inv.boxNum?'#'+inv.boxNum:''}` : '';
-                return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${date.toLocaleDateString('ja-JP')}</div><span class="badge badge-primary">¥${inv.total.toLocaleString()}</span></div><div class="list-item-meta">${inv.people||1}名${seatLbl} / ドリンク${inv.drinks.reduce((s,d)=>s+d.count,0)}杯</div></div>`;
+                const pm = {cash:'現金',paypay:'PayPay',card:'カード'}[inv.paymentMethod]||'現金';
+                return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${date.toLocaleDateString('ja-JP')}</div><span class="badge badge-primary">¥${inv.total.toLocaleString()}</span></div><div class="list-item-meta">${inv.people||1}名${seatLbl} / ${pm} / ドリンク${inv.drinks.reduce((s,d)=>s+d.count,0)}杯</div></div>`;
             }).join('')}
         </div>
     `;
     openModal('customerModal');
 }
 
-// ── レシート印刷 ──────────────────────────────────────
+// ── レシート印刷（消費税・支払方法対応版）────────────
 function printReceipt(invoiceId) {
     const inv = appData.invoices.find(i => i.id === invoiceId);
     if (!inv) { alert('確定済みの伝票が見つかりません'); return; }
@@ -2344,7 +2352,6 @@ function printReceipt(invoiceId) {
         : 'カウンター席';
     const setLabel = inv.hasBottle ? 'セット料金（ボトル有）' : 'セット料金（ボトル無）';
 
-    // ドリンク明細をキャスト名付きで組み立て
     const drinkLines = [];
     const kleinerMap = {};
     inv.drinks.forEach(d => {
@@ -2367,7 +2374,6 @@ function printReceipt(invoiceId) {
         drinkLines.push({ name: 'クライナー' + (who ? '（' + who + '）' : ''), price: amt, count: 1, isTotalLine: true });
     });
 
-    // 小計の組み立て
     const rows = [];
     rows.push({ label: setLabel + ' × ' + inv.people + '名', price: inv.setPrice * inv.people });
     if (inv.seatPrice > 0) rows.push({ label: seatStr, price: inv.seatPrice });
@@ -2389,6 +2395,31 @@ function printReceipt(invoiceId) {
         '</div>'
     ).join('');
 
+    const isCard = inv.paymentMethod === 'card';
+    const isPaypay = inv.paymentMethod === 'paypay';
+    const totalAmount = inv.total;
+
+    // 税抜小計を逆算
+    // 現金・PayPay: total = subtotalEx * 1.1  → subtotalEx = total / 1.1
+    // カード: total = subtotalEx * 1.1 * 1.1 → subtotalEx = total / 1.21
+    let subtotalEx, tax, subtotalInc, cardFee;
+    if (isCard) {
+        subtotalEx = Math.round(totalAmount / 1.21);
+        tax = Math.round(subtotalEx * 0.1);
+        subtotalInc = subtotalEx + tax;
+        cardFee = totalAmount - subtotalInc;
+    } else {
+        subtotalEx = Math.round(totalAmount / 1.1);
+        tax = Math.round(subtotalEx * 0.1);
+        subtotalInc = totalAmount;
+        cardFee = 0;
+    }
+
+    const payMethodLabel = isCard ? 'クレジットカード' : isPaypay ? 'PayPay' : '現金';
+    const cardFeeRow = isCard
+        ? '<div class="receipt-row" style="font-weight:600;"><span>カード手数料（10%）</span><span>¥' + cardFee.toLocaleString() + '</span></div>'
+        : '';
+
     const html = '<div class="receipt-wrap">' +
         '<div class="receipt-shop">SNACK 73</div>' +
         '<div class="receipt-sub">スナックセブンスリー</div>' +
@@ -2397,7 +2428,14 @@ function printReceipt(invoiceId) {
         '<hr class="receipt-divider">' +
         rowsHtml +
         '<hr class="receipt-divider">' +
-        '<div class="receipt-total-row"><span>合　計</span><span>¥' + inv.total.toLocaleString() + '</span></div>' +
+        '<div class="receipt-row"><span>小計（税抜）</span><span>¥' + subtotalEx.toLocaleString() + '</span></div>' +
+        '<div class="receipt-row"><span>消費税（10%）</span><span>¥' + tax.toLocaleString() + '</span></div>' +
+        '<div class="receipt-row" style="font-weight:600;"><span>小計（税込）</span><span>¥' + subtotalInc.toLocaleString() + '</span></div>' +
+        cardFeeRow +
+        '<hr class="receipt-divider">' +
+        '<div class="receipt-total-row"><span>合　計</span><span>¥' + totalAmount.toLocaleString() + '</span></div>' +
+        '<hr class="receipt-divider">' +
+        '<div class="receipt-row" style="font-size:12px;opacity:0.8;"><span>お支払方法</span><span>' + payMethodLabel + '</span></div>' +
         '<hr class="receipt-divider">' +
         '<div class="receipt-footer">ありがとうございました<br>またのお越しをお待ちしております</div>' +
         '</div>';
@@ -2406,7 +2444,6 @@ function printReceipt(invoiceId) {
     window.print();
 }
 
-// ── ユーティリティ ──────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
@@ -2440,7 +2477,6 @@ function renderAll() {
     renderDrinkSettings();
 }
 </script>
-<!-- レシート印刷エリア（印刷時のみ表示） -->
 <div id="receiptPrintArea"></div>
 
 </body>
