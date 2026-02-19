@@ -1664,7 +1664,8 @@ function calculateEditInvoice() {
     const isCard = paymentMethod === 'card';
     // カード手数料は税込小計の10%
     const cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
-    const total = subtotalInc + cardFee;
+    // 合計を100円単位に切り上げ
+    const total = Math.ceil((subtotalInc + cardFee) / 100) * 100;
 
     document.getElementById('editInvoiceSubtotalEx').textContent = `¥${subtotalEx.toLocaleString()}`;
     document.getElementById('editInvoiceTax').textContent = `¥${tax.toLocaleString()}`;
@@ -1701,6 +1702,7 @@ async function saveEditInvoice() {
     inv.paymentMethod = document.getElementById('editInvoicePaymentMethod').value;
     inv.drinks = collectDrinks();
     inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
+    inv.subtotalEx = parseInt(document.getElementById('editInvoiceSubtotalEx').textContent.replace(/[^0-9]/g, ''));
 
     showLoading(true);
     await saveData();
@@ -1730,6 +1732,7 @@ async function completeInvoice() {
     inv.paymentMethod = document.getElementById('editInvoicePaymentMethod').value;
     inv.drinks = collectDrinks();
     inv.total = parseInt(document.getElementById('editInvoiceTotal').textContent.replace(/[^0-9]/g, ''));
+    inv.subtotalEx = parseInt(document.getElementById('editInvoiceSubtotalEx').textContent.replace(/[^0-9]/g, ''));
     inv.status = 'completed';
     inv.completedAt = new Date().toISOString();
 
@@ -2399,25 +2402,34 @@ function printReceipt(invoiceId) {
     const isPaypay = inv.paymentMethod === 'paypay';
     const totalAmount = inv.total;
 
-    // 税抜小計を逆算
-    // 現金・PayPay: total = subtotalEx * 1.1  → subtotalEx = total / 1.1
-    // カード: total = subtotalEx * 1.1 * 1.1 → subtotalEx = total / 1.21
-    let subtotalEx, tax, subtotalInc, cardFee;
-    if (isCard) {
+    // 保存済みの税抜小計を使用（なければ逆算）
+    let subtotalEx, tax, subtotalInc, cardFee, roundingAdj;
+    if (inv.subtotalEx) {
+        subtotalEx = inv.subtotalEx;
+        tax = Math.floor(subtotalEx * 0.1);
+        subtotalInc = subtotalEx + tax;
+        cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
+        roundingAdj = totalAmount - (subtotalInc + cardFee);
+    } else if (isCard) {
         subtotalEx = Math.round(totalAmount / 1.21);
         tax = Math.round(subtotalEx * 0.1);
         subtotalInc = subtotalEx + tax;
         cardFee = totalAmount - subtotalInc;
+        roundingAdj = 0;
     } else {
         subtotalEx = Math.round(totalAmount / 1.1);
         tax = Math.round(subtotalEx * 0.1);
         subtotalInc = totalAmount;
         cardFee = 0;
+        roundingAdj = 0;
     }
 
     const payMethodLabel = isCard ? 'クレジットカード' : isPaypay ? 'PayPay' : '現金';
     const cardFeeRow = isCard
         ? '<div class="receipt-row" style="font-weight:600;"><span>カード手数料（10%）</span><span>¥' + cardFee.toLocaleString() + '</span></div>'
+        : '';
+    const roundingRow = roundingAdj > 0
+        ? '<div class="receipt-row"><span>端数調整（100円切り上げ）</span><span>+¥' + roundingAdj.toLocaleString() + '</span></div>'
         : '';
 
     const html = '<div class="receipt-wrap">' +
@@ -2432,6 +2444,7 @@ function printReceipt(invoiceId) {
         '<div class="receipt-row"><span>消費税（10%）</span><span>¥' + tax.toLocaleString() + '</span></div>' +
         '<div class="receipt-row" style="font-weight:600;"><span>小計（税込）</span><span>¥' + subtotalInc.toLocaleString() + '</span></div>' +
         cardFeeRow +
+        roundingRow +
         '<hr class="receipt-divider">' +
         '<div class="receipt-total-row"><span>合　計</span><span>¥' + totalAmount.toLocaleString() + '</span></div>' +
         '<hr class="receipt-divider">' +
