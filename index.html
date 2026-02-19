@@ -110,7 +110,7 @@
             border-bottom: 3px solid transparent;
             font-family: 'Noto Sans JP', sans-serif;
             white-space: nowrap;
-            min-width: 60px;
+            min-width: 55px;
         }
         .nav-tab.active {
             color: var(--primary);
@@ -170,6 +170,19 @@
             box-shadow: 0 0 0 3px rgba(255,0,102,0.1);
         }
         select.form-control { cursor: pointer; }
+        select[multiple].form-control {
+            height: auto;
+            min-height: 100px;
+            padding: 8px;
+        }
+        select[multiple].form-control option {
+            padding: 6px 8px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+        }
+        select[multiple].form-control option:checked {
+            background: rgba(255,0,102,0.3);
+        }
         .btn {
             padding: 12px 24px;
             border: none;
@@ -249,6 +262,7 @@
         }
         .list-item:hover { transform: translateX(5px); box-shadow: 0 4px 15px rgba(0,204,255,0.2); }
         .list-item.active-invoice { border-left-color: var(--warning); }
+        .list-item.low-stock { border-left-color: var(--error); }
         .list-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .list-item-title { font-weight: 700; font-size: 16px; }
         .list-item-meta { font-size: 13px; color: var(--text-dim); }
@@ -262,6 +276,7 @@
         .badge-primary { background: rgba(255,0,102,0.2); color: var(--primary); }
         .badge-success { background: rgba(0,255,136,0.2); color: var(--success); }
         .badge-warning { background: rgba(255,170,0,0.2); color: var(--warning); }
+        .badge-error { background: rgba(255,51,85,0.2); color: var(--error); }
         .modal {
             display: none;
             position: fixed;
@@ -439,6 +454,51 @@
         .counter-wrap.drink-counter .counter-btn { background: rgba(0,204,255,0.08); }
         .counter-wrap.drink-counter .counter-btn:active { background: var(--secondary); color: var(--dark); }
 
+        /* 在庫アラートバナー */
+        .inv-alert-banner {
+            display: none;
+            background: rgba(255,51,85,0.1);
+            border: 1px solid var(--error);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .inv-alert-banner.visible { display: block; }
+        .inv-alert-banner-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .inv-alert-banner-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--error);
+        }
+        .inv-alert-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,51,85,0.08);
+            border: 1px solid rgba(255,51,85,0.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+        }
+        .inv-alert-item:last-child { margin-bottom: 0; }
+        .inv-stock-bar-wrap {
+            background: var(--dark-card);
+            border-radius: 4px;
+            height: 5px;
+            overflow: hidden;
+            margin: 6px 0;
+        }
+        .inv-stock-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.4s ease;
+        }
+
         #receiptPrintArea { display: none; }
         @media print {
             body * { visibility: hidden !important; }
@@ -521,6 +581,7 @@
     <div class="nav-tabs">
         <button class="nav-tab active" onclick="switchTab('invoice',this)">伝票</button>
         <button class="nav-tab" onclick="switchTab('drinks',this)">ドリンク</button>
+        <button class="nav-tab" onclick="switchTab('inventory',this)">在庫</button>
         <button class="nav-tab" onclick="switchTab('salary',this)">給料</button>
         <button class="nav-tab" onclick="switchTab('sales',this)">売上</button>
         <button class="nav-tab" onclick="switchTab('customer',this)">顧客</button>
@@ -600,6 +661,74 @@
             <div class="card">
                 <div class="card-title">📋 登録済みドリンク一覧</div>
                 <div id="drinkSettingsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======= 在庫管理 ======= -->
+    <div id="inventory" class="section">
+        <div class="content">
+            <!-- 低在庫アラートバナー -->
+            <div class="inv-alert-banner" id="invAlertBanner">
+                <div class="inv-alert-banner-header">
+                    <span style="font-size:22px;">⚠️</span>
+                    <div>
+                        <div class="inv-alert-banner-title">在庫不足のアイテムがあります</div>
+                        <div style="font-size:12px;color:var(--text-dim);" id="invAlertSubtitle"></div>
+                    </div>
+                </div>
+                <div id="invAlertItems"></div>
+            </div>
+
+            <!-- 在庫登録 -->
+            <div class="card">
+                <div class="card-title">🍾 在庫を登録</div>
+                <div class="form-group">
+                    <label class="form-label">在庫名<span class="required">*</span></label>
+                    <input type="text" id="invName" class="form-control" placeholder="例: サントリー角瓶">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">種類<span class="required">*</span></label>
+                    <select id="invType" class="form-control">
+                        <option value="ウイスキー">ウイスキー</option>
+                        <option value="焼酎">焼酎</option>
+                        <option value="ワイン">ワイン</option>
+                        <option value="シャンパン">シャンパン</option>
+                        <option value="ビール">ビール</option>
+                        <option value="日本酒">日本酒</option>
+                        <option value="リキュール">リキュール</option>
+                        <option value="ソフトドリンク">ソフトドリンク</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">現在の在庫数（本）</label>
+                        <input type="number" id="invCurrentStock" class="form-control" placeholder="例: 5" min="0" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">必要本数（最低）</label>
+                        <input type="number" id="invMinStock" class="form-control" placeholder="例: 2" min="0" step="0.5">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">1注文あたりの在庫削減数</label>
+                    <input type="number" id="invReductionPerOrder" class="form-control" value="1" min="0.01" step="0.1" placeholder="例: 1（ボトル）, 0.1（10杯=1本）">
+                    <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">ボトル系は1、カクテル等は0.1（10杯で1本）など</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">紐づくドリンクメニュー（複数選択可）</label>
+                    <select id="invLinkedDrinks" class="form-control" multiple style="height:120px;">
+                    </select>
+                    <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">このお酒を使うドリンクを選択してください（伝票確定時に自動減算）</div>
+                </div>
+                <button class="btn btn-success btn-block" onclick="addInventoryItem()">✨ 在庫を追加</button>
+            </div>
+
+            <!-- 在庫一覧 -->
+            <div class="card">
+                <div class="card-title">📦 在庫一覧</div>
+                <div id="inventoryList"></div>
             </div>
         </div>
     </div>
@@ -1035,6 +1164,59 @@
     </div>
 </div>
 
+<!-- 在庫編集モーダル -->
+<div id="editInventoryModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">在庫を編集</div>
+            <button class="modal-close" onclick="closeModal('editInventoryModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editInvId">
+            <div class="form-group">
+                <label class="form-label">在庫名<span class="required">*</span></label>
+                <input type="text" id="editInvName" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">種類</label>
+                <select id="editInvType" class="form-control">
+                    <option value="ウイスキー">ウイスキー</option>
+                    <option value="焼酎">焼酎</option>
+                    <option value="ワイン">ワイン</option>
+                    <option value="シャンパン">シャンパン</option>
+                    <option value="ビール">ビール</option>
+                    <option value="日本酒">日本酒</option>
+                    <option value="リキュール">リキュール</option>
+                    <option value="ソフトドリンク">ソフトドリンク</option>
+                    <option value="その他">その他</option>
+                </select>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">現在の在庫数（本）</label>
+                    <input type="number" id="editInvCurrentStock" class="form-control" min="0" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">必要本数（最低）</label>
+                    <input type="number" id="editInvMinStock" class="form-control" min="0" step="0.5">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">1注文あたりの在庫削減数</label>
+                <input type="number" id="editInvReductionPerOrder" class="form-control" min="0.01" step="0.1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">紐づくドリンクメニュー（複数選択可）</label>
+                <select id="editInvLinkedDrinks" class="form-control" multiple style="height:120px;"></select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+                <button class="btn btn-danger" onclick="deleteInventoryItem()">🗑️ 削除</button>
+                <button class="btn btn-success" onclick="saveEditInventory()">💾 保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Firebase SDK (CDN) -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -1063,7 +1245,9 @@ window._loadData = async function() {
         const snap = await getDoc(DOC_REF);
         if (snap.exists()) {
             const saved = snap.data().payload ? JSON.parse(snap.data().payload) : {};
-            appData = { activeInvoices: [], ...saved };
+            appData = { activeInvoices: [], inventory: [], ...saved };
+            // 既存データに inventory がなければ初期化
+            if (!appData.inventory) appData.inventory = [];
         }
     } catch(e) {
         console.error('Firestore読み込みエラー:', e);
@@ -1091,7 +1275,8 @@ let appData = {
     invoices: [],
     activeInvoices: [],
     workTimes: [],
-    drinkSettings: []
+    drinkSettings: [],
+    inventory: []
 };
 let currentEditingInvoiceId = null;
 let currentBoxNum = null;
@@ -1118,11 +1303,13 @@ function switchTab(tabName, btn) {
     document.getElementById(tabName).classList.add('active');
     if (tabName === 'invoice') { renderActiveInvoices(); renderCompletedInvoices(); }
     if (tabName === 'drinks') renderDrinkSettings();
+    if (tabName === 'inventory') renderInventory();
     if (tabName === 'salary') renderSalarySection();
     if (tabName === 'sales') loadSalesData();
     if (tabName === 'customer') renderCustomerList();
 }
 
+// ── ドリンク設定 ────────────────────────────────────────
 function toggleDrinkTypeFields() {
     const type = document.getElementById('drinkSettingType').value;
     document.getElementById('normalDrinkFields').style.display = type === 'ショット' ? 'none' : 'block';
@@ -1161,6 +1348,10 @@ async function deleteDrinkSetting(id) {
     if (!confirm('このドリンクを削除してもよろしいですか？')) return;
     showLoading(true);
     appData.drinkSettings = appData.drinkSettings.filter(d => d.id !== id);
+    // 在庫のリンクからも除去
+    appData.inventory.forEach(item => {
+        item.linkedDrinkIds = (item.linkedDrinkIds || []).filter(did => did !== id);
+    });
     await saveData();
     showLoading(false);
     renderDrinkSettings();
@@ -1190,6 +1381,240 @@ function renderDrinkSettings() {
     c.innerHTML = html;
 }
 
+// ── 在庫管理 ────────────────────────────────────────────
+async function addInventoryItem() {
+    const name = document.getElementById('invName').value.trim();
+    const type = document.getElementById('invType').value;
+    const currentStock = parseFloat(document.getElementById('invCurrentStock').value) || 0;
+    const minStock = parseFloat(document.getElementById('invMinStock').value) || 0;
+    const reductionPerOrder = parseFloat(document.getElementById('invReductionPerOrder').value) || 1;
+    const linkedSel = document.getElementById('invLinkedDrinks');
+    const linkedDrinkIds = linkedSel ? Array.from(linkedSel.selectedOptions).map(o => o.value) : [];
+    if (!name) { alert('在庫名を入力してください'); return; }
+    showLoading(true);
+    if (!appData.inventory) appData.inventory = [];
+    appData.inventory.push({ id: Date.now().toString(), name, type, currentStock, minStock, reductionPerOrder, linkedDrinkIds });
+    await saveData();
+    showLoading(false);
+    document.getElementById('invName').value = '';
+    document.getElementById('invCurrentStock').value = '';
+    document.getElementById('invMinStock').value = '';
+    document.getElementById('invReductionPerOrder').value = '1';
+    Array.from(linkedSel.options).forEach(o => o.selected = false);
+    renderInventory();
+    alert('在庫を追加しました！');
+}
+
+function renderInventory() {
+    renderInvAlertBanner();
+    renderInventoryList();
+    renderInvLinkedDrinksSelect('invLinkedDrinks');
+}
+
+function renderInvAlertBanner() {
+    if (!appData.inventory) return;
+    const lowItems = appData.inventory.filter(i => i.currentStock < i.minStock);
+    const banner = document.getElementById('invAlertBanner');
+    if (!banner) return;
+    if (!lowItems.length) {
+        banner.classList.remove('visible');
+        return;
+    }
+    banner.classList.add('visible');
+    document.getElementById('invAlertSubtitle').textContent = `${lowItems.length}件の在庫が必要本数を下回っています`;
+    document.getElementById('invAlertItems').innerHTML = lowItems.map(item => {
+        const shortage = item.minStock - item.currentStock;
+        return `<div class="inv-alert-item">
+            <div>
+                <div style="font-weight:700;font-size:14px;">${item.name}</div>
+                <div style="font-size:12px;color:var(--text-dim);">${item.type}</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:18px;font-weight:700;color:var(--error);">${item.currentStock}<span style="font-size:11px;font-weight:400;"> 本</span></div>
+                <div style="font-size:11px;color:var(--text-dim);">必要: ${item.minStock}本 / <span style="color:var(--error);">あと${shortage.toFixed(1)}本不足</span></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderInventoryList() {
+    const c = document.getElementById('inventoryList');
+    if (!appData.inventory || !appData.inventory.length) {
+        c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🍾</div><div>在庫が登録されていません</div></div>'; return;
+    }
+    const types = [...new Set(appData.inventory.map(i => i.type))];
+    let html = '';
+    types.forEach(type => {
+        const items = appData.inventory.filter(i => i.type === type);
+        html += `<div style="margin-bottom:20px;"><div class="form-label" style="color:var(--secondary);margin-bottom:8px;font-size:14px;">${type}</div>`;
+        items.forEach(item => {
+            const isLow = item.currentStock < item.minStock;
+            const isWarning = !isLow && item.minStock > 0 && item.currentStock < item.minStock * 1.5;
+            const pct = item.minStock > 0 ? Math.min(100, (item.currentStock / item.minStock) * 100) : 100;
+            const barColor = isLow ? 'var(--error)' : isWarning ? 'var(--warning)' : 'var(--success)';
+            const linkedNames = (item.linkedDrinkIds || [])
+                .map(id => appData.drinkSettings.find(x => x.id === id)?.name)
+                .filter(Boolean);
+            const statusBadge = isLow
+                ? '<span class="badge badge-error">在庫不足</span>'
+                : isWarning
+                    ? '<span class="badge badge-warning">残り少ない</span>'
+                    : '<span class="badge badge-success">良好</span>';
+            html += `<div class="list-item ${isLow ? 'low-stock' : ''}" onclick="openEditInventory('${item.id}')">
+                <div class="list-item-header">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div class="list-item-title">${item.name}</div>
+                        ${statusBadge}
+                    </div>
+                    <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" onclick="openEditInventory('${item.id}');event.stopPropagation();">編集</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;margin:8px 0;">
+                    <div style="flex:1;">
+                        <div class="inv-stock-bar-wrap">
+                            <div class="inv-stock-bar" style="width:${pct}%;background:${barColor};"></div>
+                        </div>
+                    </div>
+                    <div style="font-size:18px;font-weight:700;color:${isLow ? 'var(--error)' : 'var(--text)'};">
+                        ${item.currentStock}<span style="font-size:12px;font-weight:400;color:var(--text-dim);"> / ${item.minStock}本</span>
+                    </div>
+                </div>
+                <div class="list-item-meta">
+                    1注文 -${item.reductionPerOrder}本
+                    ${linkedNames.length ? '　|　' + linkedNames.join('・') : '<span style="color:var(--border);"> |　ドリンク未紐付け</span>'}
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    });
+    c.innerHTML = html;
+}
+
+function renderInvLinkedDrinksSelect(selId) {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const prevSelected = Array.from(sel.selectedOptions).map(o => o.value);
+    sel.innerHTML = '';
+    if (!appData.drinkSettings.length) {
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = '（ドリンクが登録されていません）'; opt.disabled = true;
+        sel.appendChild(opt);
+        return;
+    }
+    const groups = ['カクテル','ショット','シャンパン','ビール','その他'];
+    groups.forEach(g => {
+        const drinks = appData.drinkSettings.filter(d => d.type === g);
+        if (!drinks.length) return;
+        const og = document.createElement('optgroup');
+        og.label = g;
+        drinks.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = d.name;
+            opt.selected = prevSelected.includes(d.id);
+            og.appendChild(opt);
+        });
+        sel.appendChild(og);
+    });
+}
+
+function openEditInventory(itemId) {
+    const item = appData.inventory.find(i => i.id === itemId);
+    if (!item) return;
+    document.getElementById('editInvId').value = item.id;
+    document.getElementById('editInvName').value = item.name;
+    document.getElementById('editInvType').value = item.type;
+    document.getElementById('editInvCurrentStock').value = item.currentStock;
+    document.getElementById('editInvMinStock').value = item.minStock;
+    document.getElementById('editInvReductionPerOrder').value = item.reductionPerOrder || 1;
+    // 紐づくドリンク（編集モーダル用）
+    const sel = document.getElementById('editInvLinkedDrinks');
+    sel.innerHTML = '';
+    const groups = ['カクテル','ショット','シャンパン','ビール','その他'];
+    groups.forEach(g => {
+        const drinks = appData.drinkSettings.filter(d => d.type === g);
+        if (!drinks.length) return;
+        const og = document.createElement('optgroup');
+        og.label = g;
+        drinks.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = d.name;
+            opt.selected = (item.linkedDrinkIds || []).includes(d.id);
+            og.appendChild(opt);
+        });
+        sel.appendChild(og);
+    });
+    openModal('editInventoryModal');
+}
+
+async function saveEditInventory() {
+    const id = document.getElementById('editInvId').value;
+    const idx = appData.inventory.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    const name = document.getElementById('editInvName').value.trim();
+    if (!name) { alert('在庫名を入力してください'); return; }
+    const sel = document.getElementById('editInvLinkedDrinks');
+    const linkedDrinkIds = Array.from(sel.selectedOptions).map(o => o.value);
+    appData.inventory[idx] = {
+        ...appData.inventory[idx],
+        name,
+        type: document.getElementById('editInvType').value,
+        currentStock: parseFloat(document.getElementById('editInvCurrentStock').value) || 0,
+        minStock: parseFloat(document.getElementById('editInvMinStock').value) || 0,
+        reductionPerOrder: parseFloat(document.getElementById('editInvReductionPerOrder').value) || 1,
+        linkedDrinkIds
+    };
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editInventoryModal');
+    renderInventory();
+    alert('在庫情報を更新しました！');
+}
+
+async function deleteInventoryItem() {
+    const id = document.getElementById('editInvId').value;
+    const item = appData.inventory.find(i => i.id === id);
+    if (!confirm(`「${item?.name}」を削除してもよろしいですか？`)) return;
+    appData.inventory = appData.inventory.filter(i => i.id !== id);
+    showLoading(true);
+    await saveData();
+    showLoading(false);
+    closeModal('editInventoryModal');
+    renderInventory();
+    alert('削除しました');
+}
+
+// 在庫削減（伝票確定時に呼び出す）
+function reduceInventoryFromInvoice(inv) {
+    if (!appData.inventory || !appData.inventory.length) return;
+    inv.drinks.forEach(d => {
+        appData.inventory.forEach(item => {
+            if ((item.linkedDrinkIds || []).includes(d.drinkId)) {
+                const reduction = d.count * (item.reductionPerOrder || 1);
+                item.currentStock = Math.max(0, +((item.currentStock || 0) - reduction).toFixed(3));
+            }
+        });
+    });
+}
+
+// 在庫不足をチェックしてアラートを返す
+function checkInventoryLowAlerts(inv) {
+    if (!appData.inventory || !appData.inventory.length) return [];
+    const lowItems = [];
+    inv.drinks.forEach(d => {
+        appData.inventory.forEach(item => {
+            if ((item.linkedDrinkIds || []).includes(d.drinkId)) {
+                if (item.currentStock < item.minStock) {
+                    if (!lowItems.find(x => x.id === item.id)) lowItems.push(item);
+                }
+            }
+        });
+    });
+    return lowItems;
+}
+
+// ── キャスト ─────────────────────────────────────────────
 async function addCast() {
     const name = document.getElementById('newCastName').value.trim();
     if (!name) { alert('キャスト名を入力してください'); return; }
@@ -1248,7 +1673,6 @@ function openEditCast(castId) {
     document.getElementById('editCastTransport').value = cast.transport;
     openModal('editCastModal');
 }
-
 async function saveEditCast() {
     const castId = document.getElementById('editCastId').value;
     const name = document.getElementById('editCastName').value.trim();
@@ -1275,7 +1699,6 @@ async function saveEditCast() {
     renderAll();
     alert('キャスト情報を更新しました！');
 }
-
 async function deleteCast() {
     const castId = document.getElementById('editCastId').value;
     const cast = appData.casts.find(c => c.id === castId);
@@ -1289,6 +1712,7 @@ async function deleteCast() {
     alert('削除しました');
 }
 
+// ── 顧客 ─────────────────────────────────────────────────
 async function addCustomer() {
     const name = document.getElementById('newCustomerName').value.trim();
     if (!name) { alert('顧客名を入力してください'); return; }
@@ -1335,7 +1759,6 @@ function renderCustomerList() {
         </div>`;
     }).join('');
 }
-
 function openEditCustomer(customerId) {
     const cu = appData.customers.find(c => c.id === customerId);
     if (!cu) return;
@@ -1345,7 +1768,6 @@ function openEditCustomer(customerId) {
     document.getElementById('editCustomerMemo').value = cu.memo || '';
     openModal('editCustomerModal');
 }
-
 async function saveEditCustomer() {
     const customerId = document.getElementById('editCustomerId').value;
     const name = document.getElementById('editCustomerName').value.trim();
@@ -1365,7 +1787,6 @@ async function saveEditCustomer() {
     renderAll();
     alert('顧客情報を更新しました！');
 }
-
 async function deleteCustomer() {
     const customerId = document.getElementById('editCustomerId').value;
     const cu = appData.customers.find(c => c.id === customerId);
@@ -1379,6 +1800,7 @@ async function deleteCustomer() {
     alert('削除しました');
 }
 
+// ── 伝票 ─────────────────────────────────────────────────
 async function createNewInvoice() {
     const inv = {
         id: Date.now().toString(),
@@ -1598,13 +2020,6 @@ function changeDrinkCount(btn, delta) {
 
 function roundUpTo50(n) { return Math.ceil(n / 50) * 50; }
 
-// ── 料金計算ロジック（消費税・支払方法対応版）──────────
-// 小計（税抜） = セット料金 + 席料 + 延長 + カラオケ + ドリンク
-// 消費税 = 小計（税抜） × 10%
-// 小計（税込） = 小計（税抜） + 消費税
-// カード手数料 = 小計（税込） × 10%（カードのみ）
-// 合計 = 小計（税込） + カード手数料
-
 function calculateEditInvoice() {
     const setData = document.getElementById('editInvoiceSet').value.split('-');
     const setPrice = parseInt(setData[0]) || 0;
@@ -1653,24 +2068,17 @@ function calculateEditInvoice() {
         }
     });
 
-    // 税抜小計（端数丸めなし）
     const subtotalEx = totalSet + extPrice + karaokePrice + drinksTotal;
-    // 消費税 10%（切り捨て）
     const tax = Math.floor(subtotalEx * 0.1);
-    // 税込小計
     const subtotalInc = subtotalEx + tax;
-
     const paymentMethod = document.getElementById('editInvoicePaymentMethod').value;
     const isCard = paymentMethod === 'card';
-    // カード手数料は税込小計の10%（切り捨て）
     const cardFee = isCard ? Math.floor(subtotalInc * 0.1) : 0;
-    // 合計を100円単位に切り上げ（ここだけで一括丸め）
     const total = Math.ceil((subtotalInc + cardFee) / 100) * 100;
 
     document.getElementById('editInvoiceSubtotalEx').textContent = `¥${subtotalEx.toLocaleString()}`;
     document.getElementById('editInvoiceTax').textContent = `¥${tax.toLocaleString()}`;
     document.getElementById('editInvoiceSubtotal').textContent = `¥${subtotalInc.toLocaleString()}`;
-
     const cardFeeRow = document.getElementById('cardFeeRow');
     if (isCard) {
         cardFeeRow.style.display = 'flex';
@@ -1736,6 +2144,9 @@ async function completeInvoice() {
     inv.status = 'completed';
     inv.completedAt = new Date().toISOString();
 
+    // 在庫を自動削減
+    reduceInventoryFromInvoice(inv);
+
     appData.activeInvoices.splice(idx, 1);
     appData.invoices.push(inv);
     showLoading(true);
@@ -1744,7 +2155,18 @@ async function completeInvoice() {
     closeModal('invoiceModal');
     renderActiveInvoices();
     renderCompletedInvoices();
-    if (confirm('伝票を確定しました！\nレシートを印刷しますか？')) {
+
+    // 在庫不足チェック → アラート表示
+    const lowItems = checkInventoryLowAlerts(inv);
+    let alertMsg = '伝票を確定しました！';
+    if (lowItems.length) {
+        alertMsg += `\n\n⚠️ 在庫不足アラート\n以下の在庫が必要本数を下回りました：\n`;
+        lowItems.forEach(i => { alertMsg += `・${i.name}（現在 ${i.currentStock}本 / 必要 ${i.minStock}本）\n`; });
+    }
+    if (confirm(alertMsg + (lowItems.length ? '' : '\nレシートを印刷しますか？'))) {
+        if (!lowItems.length) printReceipt(inv.id);
+    }
+    if (lowItems.length && confirm('レシートを印刷しますか？')) {
         printReceipt(inv.id);
     }
 }
@@ -1831,11 +2253,11 @@ function renderCompletedInvoices() {
     }).join('');
 }
 
+// ── 給料 ─────────────────────────────────────────────────
 function renderSalarySection() {
     renderCastSelects();
     buildTimeSelects();
 }
-
 function buildTimeSelects() {
     const startSel = document.getElementById('quickWorkStart');
     const endSel = document.getElementById('quickWorkEnd');
@@ -1877,7 +2299,6 @@ function buildTimeSelects() {
     fillSelect(startSel, false);
     fillSelect(endSel, true);
 }
-
 function openEditWorkTime(workId) {
     const w = appData.workTimes.find(x => x.id === workId);
     if (!w) return;
@@ -1891,7 +2312,6 @@ function openEditWorkTime(workId) {
         (w.transportOverride !== undefined) ? w.transportOverride : -1;
     openModal('editWorkTimeModal');
 }
-
 function buildEditWorkTimeSelects() {
     const startSel = document.getElementById('editWorkStart');
     if (startSel.options.length > 1) return;
@@ -1932,7 +2352,6 @@ function buildEditWorkTimeSelects() {
     fillSel(startSel, false);
     fillSel(document.getElementById('editWorkEnd'), true);
 }
-
 async function saveEditWorkTime() {
     const id = document.getElementById('editWorkTimeId').value;
     const date = document.getElementById('editWorkDate').value;
@@ -1954,7 +2373,6 @@ async function saveEditWorkTime() {
     loadCastSalaryData();
     alert('更新しました！');
 }
-
 async function deleteWorkTime() {
     const id = document.getElementById('editWorkTimeId').value;
     const w = appData.workTimes.find(x => x.id === id);
@@ -1967,7 +2385,6 @@ async function deleteWorkTime() {
     loadCastSalaryData();
     alert('削除しました');
 }
-
 async function saveQuickWorkTime() {
     const castId = document.getElementById('salaryCast').value;
     const date = document.getElementById('quickWorkDate').value;
@@ -1990,7 +2407,6 @@ async function saveQuickWorkTime() {
     loadCastSalaryData();
     alert('勤務時間を登録しました！');
 }
-
 function loadCastSalaryData() {
     const castId = document.getElementById('salaryCast').value;
     const period = document.getElementById('salaryPeriod').value;
@@ -2068,6 +2484,7 @@ function loadCastSalaryData() {
     `;
 }
 
+// ── 売上 ─────────────────────────────────────────────────
 function onSalesPeriodChange() {
     const period = document.getElementById('salesPeriod').value;
     const monthRow = document.getElementById('salesMonthRow');
@@ -2081,7 +2498,6 @@ function onSalesPeriodChange() {
     }
     loadSalesData();
 }
-
 function buildSalesMonthSelect() {
     const sel = document.getElementById('salesMonth');
     const monthSet = new Set();
@@ -2100,7 +2516,6 @@ function buildSalesMonthSelect() {
         : '<option value="">データなし</option>';
     onSalesMonthChange();
 }
-
 function onSalesMonthChange() {
     const month = document.getElementById('salesMonth').value;
     const dayRow = document.getElementById('salesDayRow');
@@ -2123,14 +2538,12 @@ function onSalesMonthChange() {
     dayRow.style.display = 'block';
     loadSalesData();
 }
-
 function loadSalesData() {
     const period = document.getElementById('salesPeriod').value;
     const type = document.getElementById('salesType').value;
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    let filterDate;
-    let periodLabel = '';
+    let filterDate, periodLabel = '';
     if (period === 'today') {
         filterDate = d => d.split('T')[0] === today;
         periodLabel = '本日';
@@ -2163,12 +2576,10 @@ function loadSalesData() {
     else if (type === 'cast') renderCastSales(invs);
     else if (type === 'cross') renderCrossTable(invs);
 }
-
 function renderTotalSales(invs, periodLabel) {
     const total = invs.reduce((s,i)=>s+i.total,0);
     const dc = invs.reduce((s,i)=>s+i.drinks.reduce((ss,d)=>ss+d.count,0),0);
     const cuSet = new Set(invs.map(i=>i.customerId)).size;
-    // 支払方法別集計
     const cashTotal = invs.filter(i=>!i.paymentMethod||i.paymentMethod==='cash').reduce((s,i)=>s+i.total,0);
     const paypayTotal = invs.filter(i=>i.paymentMethod==='paypay').reduce((s,i)=>s+i.total,0);
     const cardTotal = invs.filter(i=>i.paymentMethod==='card').reduce((s,i)=>s+i.total,0);
@@ -2184,7 +2595,6 @@ function renderTotalSales(invs, periodLabel) {
     </div>`;
     document.getElementById('salesDetails').innerHTML = '';
 }
-
 function renderCustomerSales(invs) {
     const sales = {};
     invs.forEach(i => {
@@ -2201,7 +2611,6 @@ function renderCustomerSales(invs) {
         return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${cu?.name||'不明'}</div><span class="badge badge-primary">¥${d.total.toLocaleString()}</span></div><div class="list-item-meta">${d.count}回来店 / ドリンク${d.drinks}杯</div></div>`;
     }).join('') : '<div class="empty-state"><div>売上データがありません</div></div>';
 }
-
 function renderCastSales(invs) {
     const castTotals = {};
     invs.forEach(inv => {
@@ -2224,7 +2633,6 @@ function renderCastSales(invs) {
         return `<div class="list-item"><div class="list-item-header"><div class="list-item-title">${cast?.name||'不明'}</div><span class="badge badge-primary">ドリンク ¥${d.drinkTotal.toLocaleString()}</span></div><div class="list-item-meta">関連伝票 ${d.invSet.size}件 / ${d.drinkCount}杯</div></div>`;
     }).join('') : '<div class="empty-state"><div>売上データがありません</div></div>';
 }
-
 function renderCrossTable(invs) {
     document.getElementById('salesSummary').innerHTML = `<div class="stat-card"><div class="stat-label">総売上</div><div class="stat-value large">¥${invs.reduce((s,i)=>s+i.total,0).toLocaleString()}</div></div>`;
     if (!invs.length) {
@@ -2280,6 +2688,7 @@ function renderCrossTable(invs) {
     document.getElementById('salesDetails').innerHTML = html;
 }
 
+// ── 顧客詳細 ─────────────────────────────────────────────
 function showCustomerDetail(customerId) {
     const cu = appData.customers.find(c=>c.id===customerId);
     if (!cu) return;
@@ -2341,11 +2750,10 @@ function showCustomerDetail(customerId) {
     openModal('customerModal');
 }
 
-// ── レシート印刷（消費税・支払方法対応版）────────────
+// ── レシート印刷 ─────────────────────────────────────────
 function printReceipt(invoiceId) {
     const inv = appData.invoices.find(i => i.id === invoiceId);
     if (!inv) { alert('確定済みの伝票が見つかりません'); return; }
-
     const cu = appData.customers.find(c => c.id === inv.customerId);
     const dt = new Date(inv.completedAt || inv.createdAt);
     const dateStr = dt.toLocaleDateString('ja-JP', {year:'numeric', month:'long', day:'numeric'});
@@ -2354,7 +2762,6 @@ function printReceipt(invoiceId) {
         ? 'ボックス席' + (inv.boxNum ? ' #' + inv.boxNum : '') + ' (+¥1,000)'
         : 'カウンター席';
     const setLabel = inv.hasBottle ? 'セット料金（ボトル有）' : 'セット料金（ボトル無）';
-
     const drinkLines = [];
     const kleinerMap = {};
     inv.drinks.forEach(d => {
@@ -2376,7 +2783,6 @@ function printReceipt(invoiceId) {
         const amt = Math.floor(count / 10) * 10 * 800 + (count % 10) * 1000;
         drinkLines.push({ name: 'クライナー' + (who ? '（' + who + '）' : ''), price: amt, count: 1, isTotalLine: true });
     });
-
     const rows = [];
     rows.push({ label: setLabel + ' × ' + inv.people + '名', price: inv.setPrice * inv.people });
     if (inv.seatPrice > 0) rows.push({ label: seatStr, price: inv.seatPrice });
@@ -2390,19 +2796,15 @@ function printReceipt(invoiceId) {
         const countStr = d.isTotalLine ? '' : ' × ' + d.count;
         rows.push({ label: d.name + countStr, price: amt, indent: true });
     });
-
     const rowsHtml = rows.map(r =>
         '<div class="receipt-row' + (r.indent ? ' indent' : '') + '">' +
         '<span>' + r.label + '</span>' +
         '<span>¥' + r.price.toLocaleString() + '</span>' +
         '</div>'
     ).join('');
-
     const isCard = inv.paymentMethod === 'card';
     const isPaypay = inv.paymentMethod === 'paypay';
     const totalAmount = inv.total;
-
-    // 保存済みの税抜小計を使用（なければ逆算）
     let subtotalEx, tax, subtotalInc, cardFee, roundingAdj;
     if (inv.subtotalEx) {
         subtotalEx = inv.subtotalEx;
@@ -2423,7 +2825,6 @@ function printReceipt(invoiceId) {
         cardFee = 0;
         roundingAdj = 0;
     }
-
     const payMethodLabel = isCard ? 'クレジットカード' : isPaypay ? 'PayPay' : '現金';
     const cardFeeRow = isCard
         ? '<div class="receipt-row" style="font-weight:600;"><span>カード手数料（10%）</span><span>¥' + cardFee.toLocaleString() + '</span></div>'
@@ -2431,7 +2832,6 @@ function printReceipt(invoiceId) {
     const roundingRow = roundingAdj > 0
         ? '<div class="receipt-row"><span>端数調整（100円切り上げ）</span><span>+¥' + roundingAdj.toLocaleString() + '</span></div>'
         : '';
-
     const html = '<div class="receipt-wrap">' +
         '<div class="receipt-shop">SNACK 73</div>' +
         '<div class="receipt-sub">スナックセブンスリー</div>' +
@@ -2443,8 +2843,7 @@ function printReceipt(invoiceId) {
         '<div class="receipt-row"><span>小計（税抜）</span><span>¥' + subtotalEx.toLocaleString() + '</span></div>' +
         '<div class="receipt-row"><span>消費税（10%）</span><span>¥' + tax.toLocaleString() + '</span></div>' +
         '<div class="receipt-row" style="font-weight:600;"><span>小計（税込）</span><span>¥' + subtotalInc.toLocaleString() + '</span></div>' +
-        cardFeeRow +
-        roundingRow +
+        cardFeeRow + roundingRow +
         '<hr class="receipt-divider">' +
         '<div class="receipt-total-row"><span>合　計</span><span>¥' + totalAmount.toLocaleString() + '</span></div>' +
         '<hr class="receipt-divider">' +
@@ -2452,11 +2851,11 @@ function printReceipt(invoiceId) {
         '<hr class="receipt-divider">' +
         '<div class="receipt-footer">ありがとうございました<br>またのお越しをお待ちしております</div>' +
         '</div>';
-
     document.getElementById('receiptPrintArea').innerHTML = html;
     window.print();
 }
 
+// ── 共通 ─────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
@@ -2488,9 +2887,11 @@ function renderAll() {
     renderActiveInvoices();
     renderCompletedInvoices();
     renderDrinkSettings();
+    renderInvLinkedDrinksSelect('invLinkedDrinks');
+    renderInventory();
 }
 </script>
-<div id="receiptPrintArea"></div>
 
+<div id="receiptPrintArea"></div>
 </body>
 </html>
