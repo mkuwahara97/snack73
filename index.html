@@ -1378,7 +1378,53 @@ function showLoading(show) {
 async function loadData() { await window._loadData(); }
 async function saveData() { await window._saveData(); }
 
+const PROTECTED_TABS = ['salary', 'sales'];
+const CORRECT_PASSWORD = '37973';
+
 function switchTab(tabName, btn) {
+    if (PROTECTED_TABS.includes(tabName)) {
+        showPasswordModal(tabName, btn);
+        return;
+    }
+    _activateTab(tabName, btn);
+}
+
+function showPasswordModal(tabName, btn) {
+    const overlay = document.getElementById('passwordOverlay');
+    const input = document.getElementById('passwordInput');
+    const errMsg = document.getElementById('passwordError');
+    input.value = '';
+    errMsg.style.display = 'none';
+    overlay.style.display = 'flex';
+    input.focus();
+
+    overlay.dataset.targetTab = tabName;
+    overlay.dataset.targetBtnId = btn.id || '';
+    // btnへの参照をdatasetには入れられないので一時保存
+    overlay._targetBtn = btn;
+}
+
+function submitPassword() {
+    const input = document.getElementById('passwordInput');
+    const errMsg = document.getElementById('passwordError');
+    const overlay = document.getElementById('passwordOverlay');
+    if (input.value === CORRECT_PASSWORD) {
+        const tabName = overlay.dataset.targetTab;
+        const btn = overlay._targetBtn;
+        overlay.style.display = 'none';
+        _activateTab(tabName, btn);
+    } else {
+        errMsg.style.display = 'block';
+        input.value = '';
+        input.focus();
+    }
+}
+
+function closePasswordModal() {
+    document.getElementById('passwordOverlay').style.display = 'none';
+}
+
+function _activateTab(tabName, btn) {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     btn.classList.add('active');
@@ -3055,5 +3101,24 @@ function renderAll() {
 </script>
 
 <div id="receiptPrintArea"></div>
+
+<!-- パスワード認証オーバーレイ -->
+<div id="passwordOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9998;align-items:center;justify-content:center;backdrop-filter:blur(12px);">
+    <div style="background:var(--dark-card);border:1px solid var(--border);border-radius:16px;padding:32px 28px;width:90%;max-width:340px;text-align:center;box-shadow:0 8px 40px rgba(255,0,102,0.2);animation:slideUp 0.25s ease;">
+        <div style="font-size:36px;margin-bottom:12px;">🔒</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;">パスワードを入力</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:24px;">このページへのアクセスには認証が必要です</div>
+        <input id="passwordInput" type="password" class="form-control"
+            style="text-align:center;font-size:22px;letter-spacing:6px;margin-bottom:10px;"
+            placeholder="●●●●●"
+            onkeydown="if(event.key==='Enter')submitPassword();"
+            autocomplete="off">
+        <div id="passwordError" style="display:none;color:var(--error);font-size:13px;margin-bottom:10px;font-weight:600;">パスワードが違います</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+            <button class="btn btn-secondary" onclick="closePasswordModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="submitPassword()">🔓 解錠</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
