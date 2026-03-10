@@ -908,7 +908,22 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">誕生日（任意）</label>
-                    <input type="date" id="newCustomerBirthday" class="form-control">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div>
+                            <label class="form-label">月</label>
+                            <select id="newCustomerBirthdayMonth" class="form-control">
+                                <option value="">--</option>
+                                <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option><option value="04">4月</option><option value="05">5月</option><option value="06">6月</option><option value="07">7月</option><option value="08">8月</option><option value="09">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">日</label>
+                            <select id="newCustomerBirthdayDay" class="form-control">
+                                <option value="">--</option>
+                                <option value="01">1日</option><option value="02">2日</option><option value="03">3日</option><option value="04">4日</option><option value="05">5日</option><option value="06">6日</option><option value="07">7日</option><option value="08">8日</option><option value="09">9日</option><option value="10">10日</option><option value="11">11日</option><option value="12">12日</option><option value="13">13日</option><option value="14">14日</option><option value="15">15日</option><option value="16">16日</option><option value="17">17日</option><option value="18">18日</option><option value="19">19日</option><option value="20">20日</option><option value="21">21日</option><option value="22">22日</option><option value="23">23日</option><option value="24">24日</option><option value="25">25日</option><option value="26">26日</option><option value="27">27日</option><option value="28">28日</option><option value="29">29日</option><option value="30">30日</option><option value="31">31日</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">メモ（任意）</label>
@@ -1001,9 +1016,11 @@
         <div class="modal-body">
             <div class="form-group">
                 <label class="form-label">顧客名</label>
-                <select id="editInvoiceCustomer" class="form-control" onchange="calculateEditInvoice()">
+                <select id="editInvoiceCustomer" class="form-control" onchange="calculateEditInvoice();showBirthdayBanner()">
                     <option value="">顧客を選択</option>
                 </select>
+                <!-- 誕生月バナー -->
+                <div id="birthdayBanner" style="display:none;margin-top:8px;padding:10px 14px;background:rgba(255,170,0,0.12);border:1px solid var(--warning);border-radius:8px;font-size:13px;color:var(--warning);line-height:1.5;"></div>
             </div>
             <div class="grid-2">
                 <div class="form-group">
@@ -1185,7 +1202,22 @@
             </div>
             <div class="form-group">
                 <label class="form-label">誕生日（任意）</label>
-                <input type="date" id="editCustomerBirthday" class="form-control">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div>
+                        <label class="form-label">月</label>
+                        <select id="editCustomerBirthdayMonth" class="form-control">
+                            <option value="">--</option>
+                            <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option><option value="04">4月</option><option value="05">5月</option><option value="06">6月</option><option value="07">7月</option><option value="08">8月</option><option value="09">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">日</label>
+                        <select id="editCustomerBirthdayDay" class="form-control">
+                            <option value="">--</option>
+                            <option value="01">1日</option><option value="02">2日</option><option value="03">3日</option><option value="04">4日</option><option value="05">5日</option><option value="06">6日</option><option value="07">7日</option><option value="08">8日</option><option value="09">9日</option><option value="10">10日</option><option value="11">11日</option><option value="12">12日</option><option value="13">13日</option><option value="14">14日</option><option value="15">15日</option><option value="16">16日</option><option value="17">17日</option><option value="18">18日</option><option value="19">19日</option><option value="20">20日</option><option value="21">21日</option><option value="22">22日</option><option value="23">23日</option><option value="24">24日</option><option value="25">25日</option><option value="26">26日</option><option value="27">27日</option><option value="28">28日</option><option value="29">29日</option><option value="30">30日</option><option value="31">31日</option>
+                        </select>
+                    </div>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">メモ（任意）</label>
@@ -1573,7 +1605,50 @@ function _activateTab(tabName, btn) {
     if (tabName === 'export') renderExportTab();
 }
 
-// ── ドリンク設定 ──
+// ── 誕生日ユーティリティ ──
+function buildCustomerBirthday(monthId, dayId) {
+    const m = document.getElementById(monthId)?.value;
+    const d = document.getElementById(dayId)?.value;
+    if (!m || !d) return '';
+    return `${m}-${d}`; // 例: "03-15"
+}
+
+function formatBirthday(birthday) {
+    if (!birthday) return '';
+    const parts = birthday.split('-');
+    // 旧フォーマット "YYYY-MM-DD" → "MM-DD" に変換
+    if (parts.length === 3) return `${parseInt(parts[1])}月${parseInt(parts[2])}日`;
+    if (parts.length === 2) return `${parseInt(parts[0])}月${parseInt(parts[1])}日`;
+    return birthday;
+}
+
+function isBirthdayMonth(birthday) {
+    if (!birthday) return false;
+    const now = new Date();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const parts = birthday.split('-');
+    // 旧フォーマット "YYYY-MM-DD"
+    if (parts.length === 3) return parts[1] === currentMonth;
+    // 新フォーマット "MM-DD"
+    if (parts.length === 2) return parts[0] === currentMonth;
+    return false;
+}
+
+function showBirthdayBanner() {
+    const cuId = document.getElementById('editInvoiceCustomer').value;
+    const banner = document.getElementById('birthdayBanner');
+    if (!banner) return;
+    if (!cuId) { banner.style.display = 'none'; return; }
+    const cu = appData.customers.find(c => c.id === cuId);
+    if (cu && isBirthdayMonth(cu.birthday)) {
+        const bdayText = formatBirthday(cu.birthday);
+        banner.innerHTML = `🎂 <strong>${cu.name}</strong> は今月が誕生日です！（${bdayText}）`;
+        banner.style.display = 'block';
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
 function toggleDrinkTypeFields() {
     const type = document.getElementById('drinkSettingType').value;
     document.getElementById('normalDrinkFields').style.display = type === 'ショット' ? 'none' : 'block';
@@ -1971,12 +2046,15 @@ async function addCustomer() {
     showLoading(true);
     appData.customers.push({
         id: Date.now().toString(), name,
-        birthday: document.getElementById('newCustomerBirthday').value,
+        birthday: buildCustomerBirthday('newCustomerBirthdayMonth', 'newCustomerBirthdayDay'),
         memo: document.getElementById('newCustomerMemo').value.trim(),
         createdAt: new Date().toISOString()
     });
     await saveData(); showLoading(false);
-    ['newCustomerName','newCustomerBirthday','newCustomerMemo'].forEach(id => {
+    ['newCustomerName','newCustomerMemo'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    ['newCustomerBirthdayMonth','newCustomerBirthdayDay'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
     renderAll(); alert('顧客を追加しました！');
@@ -2004,7 +2082,7 @@ function renderCustomerList() {
                     <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" onclick="openEditCustomer('${cu.id}');event.stopPropagation();">編集</button>
                 </div>
             </div>
-            <div class="list-item-meta">${cu.birthday ? '誕生日: ' + cu.birthday : '誕生日未登録'}</div>
+            <div class="list-item-meta">${cu.birthday ? '🎂 ' + formatBirthday(cu.birthday) : '誕生日未登録'}</div>
         </div>`;
     }).join('');
 }
@@ -2013,7 +2091,9 @@ function openEditCustomer(customerId) {
     if (!cu) return;
     document.getElementById('editCustomerId').value = cu.id;
     document.getElementById('editCustomerName').value = cu.name;
-    document.getElementById('editCustomerBirthday').value = cu.birthday || '';
+    const [bMonth, bDay] = (cu.birthday || '--').split('-');
+    document.getElementById('editCustomerBirthdayMonth').value = bMonth || '';
+    document.getElementById('editCustomerBirthdayDay').value = bDay || '';
     document.getElementById('editCustomerMemo').value = cu.memo || '';
     openModal('editCustomerModal');
 }
@@ -2025,7 +2105,7 @@ async function saveEditCustomer() {
     if (idx === -1) return;
     appData.customers[idx] = {
         ...appData.customers[idx], name,
-        birthday: document.getElementById('editCustomerBirthday').value,
+        birthday: buildCustomerBirthday('editCustomerBirthdayMonth', 'editCustomerBirthdayDay'),
         memo: document.getElementById('editCustomerMemo').value.trim()
     };
     showLoading(true); await saveData(); showLoading(false);
@@ -2088,6 +2168,7 @@ function openInvoiceModal(inv, isCompleted) {
     bc.innerHTML = '';
     (inv.bottles || []).forEach(b => addEditInvoiceBottle(b));
     calculateEditInvoice();
+    showBirthdayBanner();
     openModal('invoiceModal');
 }
 function handleSeatChange() {
@@ -2998,7 +3079,7 @@ function showCustomerDetail(customerId) {
         <div style="margin-top:20px;">
             <div class="form-label">基本情報</div>
             <div class="list-item">
-                <div class="list-item-meta">誕生日: ${cu.birthday||'未登録'}</div>
+                <div class="list-item-meta">誕生日: ${cu.birthday ? formatBirthday(cu.birthday) : '未登録'}</div>
                 ${cu.memo?`<div class="list-item-meta" style="margin-top:8px;">メモ: ${cu.memo}</div>`:''}
             </div>
         </div>
