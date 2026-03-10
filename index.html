@@ -1380,6 +1380,7 @@ async function saveData() { await window._saveData(); }
 
 const PROTECTED_TABS = ['salary', 'sales'];
 const CORRECT_PASSWORD = '37973';
+const BIOMETRIC_STORAGE_KEY = 'snack73_biometric_credId';
 
 function switchTab(tabName, btn) {
     if (PROTECTED_TABS.includes(tabName)) {
@@ -1389,31 +1390,157 @@ function switchTab(tabName, btn) {
     _activateTab(tabName, btn);
 }
 
-function showPasswordModal(tabName, btn) {
+// ── 生体認証が使えるか確認 ──
+async function isBiometricAvailable() {
+    if (!window.PublicKeyCredential) return false;
+    try {
+        return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    } catch { return false; }
+}
+
+function getBiometricCredId() {
+    const stored = localStorage.getItem(BIOMETRIC_STORAGE_KEY);
+    if (!stored) return null;
+    try { return Uint8Array.from(atob(stored), c => c.charCodeAt(0)); } catch { return null; }
+}
+
+// ── 生体認証を登録（初回） ──
+async function registerBiometric() {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+    try {
+        const cred = await navigator.credentials.create({
+            publicKey: {
+                challenge,
+                rp: { name: 'SNACK73' },
+                user: { id: userId, name: 'owner', displayName: 'オーナー' },
+                pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+                authenticatorSelection: {
+                    authenticatorAttachment: 'platform',
+                    userVerification: 'required'
+                },
+                timeout: 60000
+            }
+        });
+        const credIdBase64 = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+        localStorage.setItem(BIOMETRIC_STORAGE_KEY, credIdBase64);
+        return true;
+    } catch (e) {
+        console.error('生体認証登録エラー:', e);
+        return false;
+    }
+}
+
+// ── 生体認証で認証 ──
+async function authenticateWithBiometric() {
+    const credId = getBiometricCredId();
+    if (!credId) return false;
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    try {
+        const assertion = await navigator.credentials.get({
+            publicKey: {
+                challenge,
+                allowCredentials: [{ id: credId, type: 'public-key' }],
+                userVerification: 'required',
+                timeout: 60000
+            }
+        });
+        return !!assertion;
+    } catch (e) {
+        // ユーザーキャンセルなどは false を返す
+        return false;
+    }
+}
+
+// ── 認証モーダルを表示 ──
+async function showPasswordModal(tabName, btn) {
     const overlay = document.getElementById('passwordOverlay');
     const input = document.getElementById('passwordInput');
     const errMsg = document.getElementById('passwordError');
+    const biometricBtn = document.getElementById('biometricBtn');
+    const biometricSection = document.getElementById('biometricSection');
+    const registerSection = document.getElementById('registerBiometricSection');
+
     input.value = '';
     errMsg.style.display = 'none';
     overlay.style.display = 'flex';
-    input.focus();
-
     overlay.dataset.targetTab = tabName;
-    overlay.dataset.targetBtnId = btn.id || '';
-    // btnへの参照をdatasetには入れられないので一時保存
     overlay._targetBtn = btn;
+
+    const available = await isBiometricAvailable();
+    const registered = !!getBiometricCredId();
+
+    const resetLink = document.getElementById('biometricResetLink');
+
+    if (available && registered) {
+        biometricSection.style.display = 'block';
+        registerSection.style.display = 'none';
+        if (resetLink) resetLink.style.display = 'block';
+        setTimeout(() => triggerBiometric(), 300);
+    } else if (available && !registered) {
+        biometricSection.style.display = 'none';
+        registerSection.style.display = 'block';
+        if (resetLink) resetLink.style.display = 'none';
+        input.focus();
+    } else {
+        biometricSection.style.display = 'none';
+        registerSection.style.display = 'none';
+        if (resetLink) resetLink.style.display = 'none';
+        input.focus();
+    }
 }
 
-function submitPassword() {
+// ── 生体認証ボタンを押したとき ──
+async function triggerBiometric() {
+    const overlay = document.getElementById('passwordOverlay');
+    const biometricBtn = document.getElementById('biometricBtn');
+    const errMsg = document.getElementById('passwordError');
+    biometricBtn.disabled = true;
+    biometricBtn.textContent = '認証中...';
+    errMsg.style.display = 'none';
+    const ok = await authenticateWithBiometric();
+    biometricBtn.disabled = false;
+    biometricBtn.innerHTML = '👆 指紋 / Face IDで認証';
+    if (ok) {
+        overlay.style.display = 'none';
+        _activateTab(overlay.dataset.targetTab, overlay._targetBtn);
+    } else {
+        errMsg.textContent = '生体認証に失敗しました。パスワードをお試しください。';
+        errMsg.style.display = 'block';
+    }
+}
+
+// ── パスワード認証 ──
+async function submitPassword() {
     const input = document.getElementById('passwordInput');
     const errMsg = document.getElementById('passwordError');
     const overlay = document.getElementById('passwordOverlay');
     if (input.value === CORRECT_PASSWORD) {
         const tabName = overlay.dataset.targetTab;
         const btn = overlay._targetBtn;
-        overlay.style.display = 'none';
+
+        // 生体認証が使えて未登録なら登録を提案
+        const available = await isBiometricAvailable();
+        const registered = !!getBiometricCredId();
+        if (available && !registered) {
+            const doRegister = document.getElementById('doRegisterBiometric')?.checked;
+            if (doRegister) {
+                overlay.style.display = 'none';
+                const ok = await registerBiometric();
+                if (ok) {
+                    alert('✅ 生体認証を登録しました！\n次回からは指紋・Face IDでアクセスできます。');
+                } else {
+                    alert('生体認証の登録に失敗しました。パスワードをご利用ください。');
+                }
+            } else {
+                overlay.style.display = 'none';
+            }
+        } else {
+            overlay.style.display = 'none';
+        }
         _activateTab(tabName, btn);
     } else {
+        errMsg.textContent = 'パスワードが違います';
         errMsg.style.display = 'block';
         input.value = '';
         input.focus();
@@ -1422,6 +1549,14 @@ function submitPassword() {
 
 function closePasswordModal() {
     document.getElementById('passwordOverlay').style.display = 'none';
+}
+
+// ── 生体認証を削除（リセット） ──
+function removeBiometric() {
+    if (confirm('生体認証の登録を解除しますか？')) {
+        localStorage.removeItem(BIOMETRIC_STORAGE_KEY);
+        alert('生体認証の登録を解除しました。');
+    }
 }
 
 function _activateTab(tabName, btn) {
@@ -3102,21 +3237,54 @@ function renderAll() {
 
 <div id="receiptPrintArea"></div>
 
-<!-- パスワード認証オーバーレイ -->
+<!-- 認証オーバーレイ -->
 <div id="passwordOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9998;align-items:center;justify-content:center;backdrop-filter:blur(12px);">
     <div style="background:var(--dark-card);border:1px solid var(--border);border-radius:16px;padding:32px 28px;width:90%;max-width:340px;text-align:center;box-shadow:0 8px 40px rgba(255,0,102,0.2);animation:slideUp 0.25s ease;">
-        <div style="font-size:36px;margin-bottom:12px;">🔒</div>
-        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;">パスワードを入力</div>
-        <div style="font-size:13px;color:var(--text-dim);margin-bottom:24px;">このページへのアクセスには認証が必要です</div>
+
+        <div style="font-size:38px;margin-bottom:10px;">🔒</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;">アクセス認証</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:20px;">このページへのアクセスには認証が必要です</div>
+
+        <!-- 生体認証ボタン（登録済みのとき表示） -->
+        <div id="biometricSection" style="display:none;margin-bottom:20px;">
+            <button id="biometricBtn"
+                onclick="triggerBiometric()"
+                style="width:100%;padding:18px;border:2px solid var(--secondary);border-radius:12px;background:rgba(0,204,255,0.08);color:var(--secondary);font-size:16px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all 0.2s;">
+                👆 指紋 / Face IDで認証
+            </button>
+            <div style="margin:16px 0;display:flex;align-items:center;gap:8px;">
+                <div style="flex:1;height:1px;background:var(--border);"></div>
+                <span style="font-size:11px;color:var(--text-dim);">または</span>
+                <div style="flex:1;height:1px;background:var(--border);"></div>
+            </div>
+        </div>
+
+        <!-- パスワード入力 -->
         <input id="passwordInput" type="password" class="form-control"
             style="text-align:center;font-size:22px;letter-spacing:6px;margin-bottom:10px;"
-            placeholder="●●●●●"
+            placeholder="パスワード"
             onkeydown="if(event.key==='Enter')submitPassword();"
             autocomplete="off">
-        <div id="passwordError" style="display:none;color:var(--error);font-size:13px;margin-bottom:10px;font-weight:600;">パスワードが違います</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+
+        <!-- エラーメッセージ -->
+        <div id="passwordError" style="display:none;font-size:13px;margin-bottom:10px;font-weight:600;color:var(--error);"></div>
+
+        <!-- 生体認証を登録するチェックボックス（未登録・対応端末のとき） -->
+        <div id="registerBiometricSection" style="display:none;margin-bottom:14px;text-align:left;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--secondary);">
+                <input type="checkbox" id="doRegisterBiometric" style="width:16px;height:16px;accent-color:var(--secondary);">
+                次回から指紋 / Face IDで認証する
+            </label>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <button class="btn btn-secondary" onclick="closePasswordModal()">キャンセル</button>
             <button class="btn btn-primary" onclick="submitPassword()">🔓 解錠</button>
+        </div>
+
+        <!-- 生体認証リセット（登録済みのとき） -->
+        <div id="biometricResetLink" style="margin-top:14px;display:none;">
+            <button onclick="removeBiometric()" style="background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer;text-decoration:underline;">生体認証の登録を解除</button>
         </div>
     </div>
 </div>
